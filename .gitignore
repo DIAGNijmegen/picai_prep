@@ -1,3 +1,6 @@
+# Ignore output of unit tests
+tests/output/*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -26,6 +29,8 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+.idea/
+.vscode/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -127,3 +132,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# macOS system files
+.DS_Store

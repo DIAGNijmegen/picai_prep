@@ -1,0 +1,123 @@
+{
+    "mappings": {
+        "t2w": {
+            "SeriesDescription": [
+                "t2_tse_tra"
+            ]
+        },
+        "cor": {
+            "SeriesDescription": [
+                "t2_tse_cor"
+            ]
+        },
+        "sag": {
+            "SeriesDescription": [
+                "t2_tse_sag"
+            ]
+        },
+        "adc": {
+            "SeriesDescription": [
+                "ep2d_diff_tra_DYNDIST_MIX_ADC",
+                "ep2d_diff_tra_DYNDIST_ADC"
+            ]
+        },
+        "hbv": {
+            "SeriesDescription": [
+                "ep2d_diff_tra_DYNDIST_MIXCALC_BVAL",
+                "ep2d_diff_tra_DYNDISTCALC_BVAL"
+            ]
+        }
+    },
+    "archive": [
+        {
+            "patient_id": "ProstateX-0000",
+            "study_id": "07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711",
+            "path": "ProstateX-0000/07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711/3.000000-t2tsesag-87368"
+        },
+        {
+            "patient_id": "ProstateX-0000",
+            "study_id": "07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711",
+            "path": "ProstateX-0000/07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711/4.000000-t2tsetra-00702"
+        },
+        {
+            "patient_id": "ProstateX-0000",
+            "study_id": "07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711",
+            "path": "ProstateX-0000/07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711/5.000000-t2tsecor-03471"
+        },
+        {
+            "patient_id": "ProstateX-0000",
+            "study_id": "07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711",
+            "path": "ProstateX-0000/07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711/6.000000-ep2ddifftraDYNDIST-69284"
+        },
+        {
+            "patient_id": "ProstateX-0000",
+            "study_id": "07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711",
+            "path": "ProstateX-0000/07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711/7.000000-ep2ddifftraDYNDISTADC-48780"
+        },
+        {
+            "patient_id": "ProstateX-0000",
+            "study_id": "07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711",
+            "path": "ProstateX-0000/07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711/8.000000-ep2ddifftraDYNDISTCALCBVAL-83202"
+        },
+        {
+            "patient_id": "ProstateX-0000",
+            "study_id": "07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711",
+            "path": "ProstateX-0000/07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711/9.000000-tfl3d PD reftra1.5x1.5t3-67276"
+        },
+        {
+            "patient_id": "ProstateX-0001",
+            "study_id": "07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738",
+            "path": "ProstateX-0001/07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738/1.000000-t2localizer-75055"
+        },
+        {
+            "patient_id": "ProstateX-0001",
+            "study_id": "07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738",
+            "path": "ProstateX-0001/07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738/10.000000-t2tsetra-17541"
+        },
+        {
+            "patient_id": "ProstateX-0001",
+            "study_id": "07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738",
+            "path": "ProstateX-0001/07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738/11.000000-tfl3d PD reftra1.5x1.5t3-77124"
+        },
+        {
+            "patient_id": "ProstateX-0001",
+            "study_id": "07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738",
+            "path": "ProstateX-0001/07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738/2.000000-t2localizer-46616"
+        },
+        {
+            "patient_id": "ProstateX-0001",
+            "study_id": "07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738",
+            "path": "ProstateX-0001/07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738/3.000000-t2loc sag-52336"
+        },
+        {
+            "patient_id": "ProstateX-0001",
+            "study_id": "07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738",
+            "path": "ProstateX-0001/07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738/4.000000-t2tsesag-22089"
+        },
+        {
+            "patient_id": "ProstateX-0001",
+            "study_id": "07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738",
+            "path": "ProstateX-0001/07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738/5.000000-t2tsecor-26539"
+        },
+        {
+            "patient_id": "ProstateX-0001",
+            "study_id": "07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738",
+            "path": "ProstateX-0001/07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738/6.000000-t2tsetra-76610"
+        },
+        {
+            "patient_id": "ProstateX-0001",
+            "study_id": "07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738",
+            "path": "ProstateX-0001/07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738/7.000000-ep2ddifftraDYNDISTMIX-61648"
+        },
+        {
+            "patient_id": "ProstateX-0001",
+            "study_id": "07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738",
+            "path": "ProstateX-0001/07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738/8.000000-ep2ddifftraDYNDISTMIXADC-33954"
+        },
+        {
+            "patient_id": "ProstateX-0001",
+            "study_id": "07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738",
+            "path": "ProstateX-0001/07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738/9.000000-ep2ddifftraDYNDISTMIXCALCBVAL-58431"
+        }
+    ]
+}

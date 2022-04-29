@@ -1,0 +1,8 @@
+jsonschema
+numpy
+pydicom
+scikit-image
+scikit-learn
+scipy
+SimpleITK
+tqdm

@@ -1,0 +1,31 @@
+{
+    "task": "Task100_test",
+    "description": "bpMRI scans from ProstateX dataset to test mha2nnunet",
+    "tensorImageSize": "4D",
+    "reference": "",
+    "licence": "",
+    "release": "0.3",
+    "modality": {
+        "0": "T2W",
+        "1": "CT",
+        "2": "HBV"
+    },
+    "labels": {
+        "0": "background",
+        "1": "lesion"
+    },
+    "name": "test",
+    "numTraining": 2,
+    "numTest": 0,
+    "training": [
+        {
+            "image": "./imagesTr/ProstateX-0000_07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711.nii.gz",
+            "label": "./labelsTr/ProstateX-0000_07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711.nii.gz"
+        },
+        {
+            "image": "./imagesTr/ProstateX-0001_07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738.nii.gz",
+            "label": "./labelsTr/ProstateX-0001_07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738.nii.gz"
+        }
+    ],
+    "test": []
+}

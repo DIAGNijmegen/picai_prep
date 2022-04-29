@@ -1,0 +1,56 @@
+#  Copyright 2022 Diagnostic Image Analysis Group, Radboudumc, Nijmegen, The Netherlands
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
+
+import json
+import pydicom
+try:
+    import importlib.resources as pkg_resources
+except ImportError:  # pragma: no cover
+    # Try backported to PY<37 `importlib_resources`.
+    import importlib_resources as pkg_resources
+
+from picai_prep import resources
+
+
+def lower_strip(s: str):
+    return s.lower().strip()
+
+
+def plural(v: int, s: str):
+    return f"{v} {s}{'' if v == 1 else 's'}"
+
+
+def get_pydicom_value(data: pydicom.dataset.FileDataset, key: str):
+    key = '0x' + key.replace('|', '')
+    if key in data:
+        result = data[key]
+        return result.value if not result.is_empty else None
+    return None
+
+
+metadata_dict = json.loads(pkg_resources.read_text(resources, "metadata.json"))
+dcm2mha_schema = json.loads(pkg_resources.read_text(resources, "dcm2mha_schema.json"))
+mha2nnunet_schema = json.loads(pkg_resources.read_text(resources, "mha2nnunet_schema.json"))
+
+metadata_defaults = {
+    "patient_id": {
+        "key": "0010|0020",
+        "error": "No PatientID metadata key found and no custom 'patient_id' provided"
+    },
+    "study_id": {
+        "key": "0020|000d",
+        "error": "No StudyInstanceUID metadata key found and no custom 'study_id' provided"
+    },
+}
