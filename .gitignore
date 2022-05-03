@@ -1,5 +1,6 @@
-# Ignore output of unit tests
+# Ignore output of unit tests (but create the folder itself)
 tests/output/*
+!tests/output/.gitkeep 
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
