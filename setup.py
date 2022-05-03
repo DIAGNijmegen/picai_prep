@@ -14,6 +14,5 @@ if __name__ == '__main__':
             "Bug Tracker": "https://github.com/DIAGNijmegen/picai_prep/issues"
         },
         license='MIT',
-        packages=['picai_prep'],
-        package_data={'picai_prep': ['resources/*.json']},
+        packages=['picai_prep', 'picai_prep.resources', 'picai_prep.examples.dcm2mha', 'picai_prep.examples.mha2nnunet'],
     )
