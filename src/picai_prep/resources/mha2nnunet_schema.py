@@ -1,4 +1,4 @@
-{
+mha2nnunet_schema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
@@ -20,7 +20,7 @@
             "type": "array",
             "items": {
               "type": "string",
-              "uniqueItems": true
+              "uniqueItems": True
             }
           },
           "annotation_path": {
@@ -31,7 +31,7 @@
         "required": [
           "scan_paths"
         ],
-        "additionalProperties": false
+        "additionalProperties": False
       }
     },
     "preprocessing": {
@@ -59,7 +59,7 @@
           "$ref": "#/$defs/3d"
         }
       },
-      "additionalProperties": false
+      "additionalProperties": False
     },
     "dataset_json": {
       "type": "object",
@@ -98,14 +98,14 @@
           "description": "..."
         }
       },
-      "additionalProperties": true,
+      "additionalProperties": True,
       "required": [
         "modality",
         "labels"
       ]
     }
   },
-  "additionalProperties": false,
+  "additionalProperties": False,
   "required": [
     "archive",
     "preprocessing",

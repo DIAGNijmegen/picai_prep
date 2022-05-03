@@ -1,4 +1,4 @@
-{
+metadata_dict = {
     "accessionnumber": "0008|0050",
     "acquisitiondate": "0008|0022",
     "acquisitionmatrix": "0018|1310",

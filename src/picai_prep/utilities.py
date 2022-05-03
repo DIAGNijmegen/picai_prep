@@ -13,15 +13,10 @@
 #  limitations under the License.
 
 
-import json
 import pydicom
-try:
-    import importlib.resources as pkg_resources
-except ImportError:  # pragma: no cover
-    # Try backported to PY<37 `importlib_resources`.
-    import importlib_resources as pkg_resources
-
-from picai_prep import resources
+from picai_prep.resources.dcm2mha_schema import dcm2mha_schema
+from picai_prep.resources.metadata import metadata_dict
+from picai_prep.resources.mha2nnunet_schema import mha2nnunet_schema
 
 
 def lower_strip(s: str):
@@ -40,10 +35,6 @@ def get_pydicom_value(data: pydicom.dataset.FileDataset, key: str):
     return None
 
 
-metadata_dict = json.loads(pkg_resources.read_text(resources, "metadata.json"))
-dcm2mha_schema = json.loads(pkg_resources.read_text(resources, "dcm2mha_schema.json"))
-mha2nnunet_schema = json.loads(pkg_resources.read_text(resources, "mha2nnunet_schema.json"))
-
 metadata_defaults = {
     "patient_id": {
         "key": "0010|0020",
@@ -54,3 +45,10 @@ metadata_defaults = {
         "error": "No StudyInstanceUID metadata key found and no custom 'study_id' provided"
     },
 }
+
+__all__ = [
+      # Explicitly expose these functions for easier imports
+      "dcm2mha_schema",
+      "metadata",
+      "mha2nnunet_schema",
+]

@@ -1,4 +1,4 @@
-{
+dcm2mha_schema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
@@ -23,7 +23,7 @@
         "required": [
           "path"
         ],
-        "additionalProperties": false
+        "additionalProperties": False
       }
     },
     "mappings": {
@@ -35,10 +35,10 @@
           "type": "object"
         }
       },
-      "additionalProperties": false
+      "additionalProperties": False
     }
   },
-  "additionalProperties": false,
+  "additionalProperties": False,
   "required": [
     "archive",
     "mappings"
