@@ -49,6 +49,6 @@ metadata_defaults = {
 __all__ = [
       # Explicitly expose these functions for easier imports
       "dcm2mha_schema",
-      "metadata",
+      "metadata_dict",
       "mha2nnunet_schema",
 ]
