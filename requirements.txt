@@ -1,3 +1,4 @@
+dataclasses
 jsonschema
 numpy
 pydicom
