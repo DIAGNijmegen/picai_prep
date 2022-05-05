@@ -81,7 +81,7 @@ def resample_img(
     out_spacing: Iterable[float] = (2.0, 2.0, 2.0),
     out_size: Optional[Iterable[int]] = None,
     is_label: bool = False,
-    pad_value: Optional[float] = None,
+    pad_value: Optional[Union[float, int]] = 0.,
 ) -> sitk.Image:
     """
     Resample images to target resolution spacing
