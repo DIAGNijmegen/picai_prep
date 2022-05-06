@@ -35,6 +35,7 @@ def test_mha2nnunet(
     """
     # convert input paths to Path
     input_dir = Path(input_dir)
+    annotations_dir = Path(annotations_dir)
     output_dir = Path(output_dir)
     output_expected_dir = Path(output_expected_dir)
 
@@ -45,9 +46,9 @@ def test_mha2nnunet(
     # test usage from command line
     check_call([
         "python", "-m", "picai_prep", "mha2nnunet",
-        "--input", input_dir,
-        "--annotations", annotations_dir,
-        "--output", output_dir,
+        "--input", input_dir.as_posix(),
+        "--annotations", annotations_dir.as_posix(),
+        "--output", output_dir.as_posix(),
         "--json", "tests/output-expected/mha2nnunet_settings.json"
     ])
 
@@ -115,8 +116,8 @@ def test_mha2nnunet_inference(
     # test usage from command line
     check_call([
         "python", "-m", "picai_prep", "mha2nnunet",
-        "--input", input_dir,
-        "--output", output_dir,
+        "--input", input_dir.as_posix(),
+        "--output", output_dir.as_posix(),
         "--out_dir_scans", "imagesTs",
         "--json", "tests/output-expected/mha2nnunet_inference_settings.json"
     ])
