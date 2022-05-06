@@ -21,11 +21,20 @@ from picai_prep.data_utils import PathLike
 
 
 def generate_mha2nnunet_settings(
-    archive_dir: PathLike = "tests/output-expected/mha/ProstateX/",
-    output_path: PathLike = "tests/output/mha2nnunet_settings.json"
+    archive_dir: PathLike,
+    output_path: PathLike,
 ):
     """
-    Create mha2nnunet_settings.json for ProstateX sample (without annotations)
+    Create mha2nnunet_settings.json (for inference) for an MHA archive with the following structure:
+    /path/to/archive/
+    ├── [patient UID]/
+        ├── [patient UID]_[study UID]_[modality].mha
+        ...
+
+    Parameters:
+    - archive_dir: path to MHA archive
+    - output_path: path to store MHA->nnUNet settings JSON to
+        (parent folder should exist)
     """
     ignore_files = [
         ".DS_Store",
@@ -104,7 +113,3 @@ def generate_mha2nnunet_settings(
 
     with open(output_path, "w") as fp:
         json.dump(mha2nnunet_settings, fp, indent=4)
-
-
-if __name__ == '__main__':
-    generate_mha2nnunet_settings()

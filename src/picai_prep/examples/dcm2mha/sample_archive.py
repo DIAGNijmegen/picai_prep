@@ -21,12 +21,24 @@ from tqdm import tqdm
 from picai_prep.data_utils import PathLike
 
 
-def generate_archive_json(
-    archive_dir: PathLike = "tests/input/dcm/ProstateX/",
-    output_path: PathLike = "tests/output/dcm2mha_settings.json"
+def generate_dcm2mha_settings(
+    archive_dir: PathLike,
+    output_path: PathLike
 ):
     """
-    Create dcm2mha_settings.json for ProstateX sample
+    Create dcm2mha_settings.json for a DICOM archive with the following structure:
+    /path/to/archive/
+    ├── [patient UID]/
+        ├── [study UID]/
+            ├── [series UID]/
+                ├── slice-1.dcm
+                ...
+                ├── slice-n.dcm
+
+    Parameters:
+    - archive_dir: path to DICOM archive
+    - output_path: path to store DICOM->MHA settings JSON to
+        (parent folder should exist)
     """
     ignore_files = [
         ".DS_Store",
@@ -101,4 +113,4 @@ def generate_archive_json(
 
 
 if __name__ == '__main__':
-    generate_archive_json()
+    generate_dcm2mha_settings()
