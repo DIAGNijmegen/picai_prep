@@ -17,11 +17,11 @@ import os
 import json
 import shutil
 from pathlib import Path
-from subprocess import check_call
 from numpy.testing import assert_allclose
 import SimpleITK as sitk
 
 from picai_prep.data_utils import PathLike
+from picai_prep.mha2nnunet import MHA2nnUNetConverter
 
 
 def test_mha2nnunet(
@@ -43,14 +43,14 @@ def test_mha2nnunet(
     if os.path.exists(output_dir):
         shutil.rmtree(output_dir)
 
-    # test usage from command line
-    check_call([
-        "python", "-m", "picai_prep", "mha2nnunet",
-        "--input", input_dir.as_posix(),
-        "--annotations", annotations_dir.as_posix(),
-        "--output", output_dir.as_posix(),
-        "--json", "tests/output-expected/mha2nnunet_settings.json"
-    ])
+    # convert MHA archive to nnUNet raw data
+    archive = MHA2nnUNetConverter(
+        input_path=input_dir.as_posix(),
+        annotations_path=annotations_dir.as_posix(),
+        output_path=output_dir.as_posix(),
+        settings_path="tests/output-expected/mha2nnunet_settings.json"
+    )
+    archive.convert()
 
     # check dataset.json
     path_out = output_dir / "Task100_test" / "dataset.json"
@@ -60,8 +60,8 @@ def test_mha2nnunet(
 
     # compare output
     for subject_id in [
-        "ProstateX-0000_07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711",
-        "ProstateX-0001_07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738",
+        "ProstateX-0000_07-07-2011",
+        "ProstateX-0001_07-08-2011",
     ]:
         for modality in ["0000", "0001", "0002"]:
             # construct paths to MHA images
@@ -113,14 +113,14 @@ def test_mha2nnunet_inference(
     if os.path.exists(output_dir):
         shutil.rmtree(output_dir)
 
-    # test usage from command line
-    check_call([
-        "python", "-m", "picai_prep", "mha2nnunet",
-        "--input", input_dir.as_posix(),
-        "--output", output_dir.as_posix(),
-        "--out_dir_scans", "imagesTs",
-        "--json", "tests/output-expected/mha2nnunet_inference_settings.json"
-    ])
+    # convert MHA archive to nnUNet raw data
+    archive = MHA2nnUNetConverter(
+        input_path=input_dir.as_posix(),
+        output_path=output_dir.as_posix(),
+        out_dir_scans="imagesTs",
+        settings_path="tests/output-expected/mha2nnunet_inference_settings.json"
+    )
+    archive.convert()
 
     # check dataset.json
     path_out = output_dir / "Task100_test" / "dataset.json"
@@ -130,8 +130,8 @@ def test_mha2nnunet_inference(
 
     # compare output
     for subject_id in [
-        "ProstateX-0000_07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711",
-        "ProstateX-0001_07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738",
+        "ProstateX-0000_07-07-2011",
+        "ProstateX-0001_07-08-2011",
     ]:
         for modality in ["0000", "0001", "0002"]:
             # construct paths to MHA images

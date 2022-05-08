@@ -31,23 +31,23 @@
     "archive": [
         {
             "patient_id": "ProstateX-0000",
-            "study_id": "07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711",
+            "study_id": "07-07-2011",
             "scan_paths": [
-                "ProstateX-0000/ProstateX-0000_07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711_t2w.mha",
-                "ProstateX-0000/ProstateX-0000_07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711_adc.mha",
-                "ProstateX-0000/ProstateX-0000_07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711_hbv.mha"
+                "ProstateX-0000/ProstateX-0000_07-07-2011_t2w.mha",
+                "ProstateX-0000/ProstateX-0000_07-07-2011_adc.mha",
+                "ProstateX-0000/ProstateX-0000_07-07-2011_hbv.mha"
             ],
-            "annotation_path": "ProstateX-0000_07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711.nii.gz"
+            "annotation_path": "ProstateX-0000_07-07-2011.nii.gz"
         },
         {
             "patient_id": "ProstateX-0001",
-            "study_id": "07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738",
+            "study_id": "07-08-2011",
             "scan_paths": [
-                "ProstateX-0001/ProstateX-0001_07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738_t2w.mha",
-                "ProstateX-0001/ProstateX-0001_07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738_adc.mha",
-                "ProstateX-0001/ProstateX-0001_07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738_hbv.mha"
+                "ProstateX-0001/ProstateX-0001_07-08-2011_t2w.mha",
+                "ProstateX-0001/ProstateX-0001_07-08-2011_adc.mha",
+                "ProstateX-0001/ProstateX-0001_07-08-2011_hbv.mha"
             ],
-            "annotation_path": "ProstateX-0001_07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738.nii.gz"
+            "annotation_path": "ProstateX-0001_07-08-2011.nii.gz"
         }
     ]
 }

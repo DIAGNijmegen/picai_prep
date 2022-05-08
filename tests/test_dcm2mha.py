@@ -15,9 +15,10 @@
 
 import os
 import shutil
-from subprocess import check_call
 import SimpleITK as sitk
 from numpy.testing import assert_allclose
+
+from picai_prep.dcm2mha import Dicom2MHAConverter
 
 
 def test_dcm2mha(
@@ -33,17 +34,17 @@ def test_dcm2mha(
         shutil.rmtree(output_dir)
 
     # test usage from command line
-    check_call([
-        "python", "-m", "picai_prep", "dcm2mha",
-        "--input", input_dir,
-        "--output", output_dir,
-        "--json", "tests/output-expected/dcm2mha_settings.json"
-    ])
+    archive = Dicom2MHAConverter(
+        input_path=input_dir,
+        output_path=output_dir,
+        settings_path="tests/output-expected/dcm2mha_settings.json"
+    )
+    archive.convert()
 
     # compare output
     for patient_id, subject_id in [
-        ("ProstateX-0000", "ProstateX-0000_07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711"),
-        ("ProstateX-0001", "ProstateX-0001_07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738"),
+        ("ProstateX-0000", "ProstateX-0000_07-07-2011"),
+        ("ProstateX-0001", "ProstateX-0001_07-08-2011"),
     ]:
         for modality in ["t2w", "adc", "hbv"]:
             # construct paths to MHA images

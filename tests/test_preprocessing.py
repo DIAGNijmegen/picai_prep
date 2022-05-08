@@ -24,8 +24,8 @@ from picai_prep.data_utils import atomic_image_write
 
 
 @pytest.mark.parametrize("subject_id", [
-    "ProstateX-0000_07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711",
-    "ProstateX-0001_07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738",
+    "ProstateX-0000_07-07-2011",
+    "ProstateX-0001_07-08-2011",
 ])
 def test_preprocessing_for_nnunet_inference(subject_id):
     """

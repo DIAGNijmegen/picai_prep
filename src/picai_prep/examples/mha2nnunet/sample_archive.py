@@ -36,7 +36,7 @@ def generate_mha2nnunet_settings(
 
     Parameters:
     - archive_dir: path to MHA archive
-    - output_path: path to store MHA->nnUNet settings JSON to
+    - output_path: path to store MHA -> nnUNet settings JSON to
         (parent folder should exist)
     """
     ignore_files = [

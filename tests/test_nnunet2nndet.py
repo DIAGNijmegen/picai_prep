@@ -61,8 +61,8 @@ def test_nnunet2nndet(
 
     # compare output
     for subject_id in [
-        "ProstateX-0000_07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711",
-        "ProstateX-0001_07-08-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-95738",
+        "ProstateX-0000_07-07-2011",
+        "ProstateX-0001_07-08-2011",
     ]:
         # compare annotations
         for extension in ["nii.gz", "json"]:

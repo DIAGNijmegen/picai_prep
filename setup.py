@@ -5,7 +5,7 @@ if __name__ == '__main__':
         long_description = fh.read()
 
     setuptools.setup(
-        version='1.0.1',
+        version='1.1',
         author_email='Joeran.Bosma@radboudumc.nl',
         long_description=long_description,
         long_description_content_type="text/markdown",
@@ -13,6 +13,6 @@ if __name__ == '__main__':
         project_urls={
             "Bug Tracker": "https://github.com/DIAGNijmegen/picai_prep/issues"
         },
-        license='MIT',
+        license='Apache License, Version 2.0',
         packages=['picai_prep', 'picai_prep.resources', 'picai_prep.examples.dcm2mha', 'picai_prep.examples.mha2nnunet'],
     )

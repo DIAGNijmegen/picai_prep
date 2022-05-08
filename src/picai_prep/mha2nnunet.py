@@ -99,9 +99,9 @@ class MHA2nnUNetConverter(ArchiveConverter):
     def __init__(
         self,
         input_path: PathLike,
-        annotations_path: PathLike,
         output_path: PathLike,
         settings_path: PathLike,
+        annotations_path: Optional[PathLike] = None,
         out_dir_scans: PathLike = "imagesTr",
         out_dir_annot: PathLike = "labelsTr",
         silent: bool = False,
@@ -121,7 +121,8 @@ class MHA2nnUNetConverter(ArchiveConverter):
             output_path=output_path,
             silent=silent
         )
-        self.annotations_dir = Path(annotations_path)
+        if annotations_path is not None:
+            annotations_path = Path(annotations_path)
         self.create_dataset_json = True
 
         # read and verify conversion settings
@@ -136,6 +137,7 @@ class MHA2nnUNetConverter(ArchiveConverter):
         self.conversion_plan: List[ConversionItem] = []
         self.out_dir_scans = out_dir_scans
         self.out_dir_annot = out_dir_annot
+        self.annotations_path = annotations_path
 
         self.next_history()  # create initial history step
         self.info("Provided mha2nnunet archive is valid.", self.get_history_report())  # report number of items
@@ -147,9 +149,9 @@ class MHA2nnUNetConverter(ArchiveConverter):
         """
         # parse parameters
         self.info(f"Starting preprocessing script for {self.task}.\n"
-                  f"\tReading scans from {self.input_dir}\n"
-                  f"\tReading annotations from {self.annotations_dir}\n\n"
-                  f"Creating preprocessing plan with {self.valid_items_str()}.")
+                  + f"\tReading scans from {self.input_dir}\n"
+                  + (f"\tReading annotations from {self.annotations_path}\n" if self.annotations_path else "")
+                  + f"\nCreating preprocessing plan with {self.valid_items_str()}.")
 
         total_scans, total_lbl = 0, 0
 
@@ -157,7 +159,7 @@ class MHA2nnUNetConverter(ArchiveConverter):
             # parse conversion info and store result
             conv_item = ConversionItem(
                 input_dir=self.input_dir,
-                annotations_dir=self.annotations_dir,
+                annotations_dir=self.annotations_path,
                 out_dir_scans=self.output_dir / self.task / self.out_dir_scans,
                 out_dir_annot=self.output_dir / self.task / self.out_dir_annot,
                 **item
