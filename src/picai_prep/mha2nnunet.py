@@ -105,7 +105,6 @@ class MHA2nnUNetConverter(ArchiveConverter):
         lbl_transformation: Optional[Callable[[sitk.Image], sitk.Image]] = None,
         out_dir_scans: PathLike = "imagesTr",
         out_dir_annot: PathLike = "labelsTr",
-        force_dataset_json: bool = False,
         silent: bool = False,
     ):
         """
@@ -116,8 +115,6 @@ class MHA2nnUNetConverter(ArchiveConverter):
         - output_path: Root directory for output
         - archive: JSON mappings file
                    Verifies whether archive.json returns a valid object prior to initialization
-        - force_dataset_json: Experimental. Generate dataset.json even when items failed conversion.
-            Will not include the failed items in the generated dataset.json.
         - silent: control verbosity of conversion process
         """
         super().__init__(
@@ -143,7 +140,6 @@ class MHA2nnUNetConverter(ArchiveConverter):
         self.out_dir_annot = out_dir_annot
         self.annotations_path = annotations_path
         self.lbl_transformation = lbl_transformation
-        self.force_dataset_json = force_dataset_json
 
         self.next_history()  # create initial history step
         self.info("Provided mha2nnunet archive is valid.", self.get_history_report())  # report number of items
@@ -248,7 +244,7 @@ class MHA2nnUNetConverter(ArchiveConverter):
         """
         Create dataset.json for nnUNet raw data archive
         """
-        if self.create_dataset_json or self.force_dataset_json:
+        if self.create_dataset_json:
             # use contents of archive->dataset_json as starting point
             json_dict = dict(self.dataset_json)
             if 'name' not in json_dict:
