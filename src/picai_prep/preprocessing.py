@@ -315,6 +315,23 @@ class Sample:
         if self.lbl is not None:
             self.lbl = crop_or_pad(self.lbl, size=self.settings.matrix_size)
 
+    def copy_physical_metadata(self):
+        """Align the origin and direction of each scan, and label"""
+        case_origin, case_direction = None, None
+        for img in self.scans:
+            # copy origin and direction (nnUNet requires this to be voxel-perfect)
+            if case_origin is None:
+                case_origin = img.GetOrigin()
+                case_direction = img.GetDirection()
+            else:
+                img.SetOrigin(case_origin)
+                img.SetDirection(case_direction)
+
+        if self.lbl is not None:
+            assert case_origin is not None and case_direction is not None
+            self.lbl.SetOrigin(case_origin)
+            self.lbl.SetDirection(case_direction)
+
     def preprocess(self):
         """Perform all preprocessing steps"""
         if self.lbl is not None and self.lbl_transformation:
@@ -330,6 +347,9 @@ class Sample:
 
         # perform centre crop
         self.centre_crop()
+
+        # copy physical metadata to align subvoxel differences between sequences
+        self.copy_physical_metadata()
 
         if self.lbl is not None:
             # check connected components of annotation

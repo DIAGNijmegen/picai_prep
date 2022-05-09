@@ -63,6 +63,7 @@ def test_mha2nnunet(
         "ProstateX-0000_07-07-2011",
         "ProstateX-0001_07-08-2011",
     ]:
+        case_origin, case_direction = None, None
         for modality in ["0000", "0001", "0002"]:
             # construct paths to MHA images
             path_out = output_dir / "Task100_test" / "imagesTr" / f"{subject_id}_{modality}.nii.gz"
@@ -73,11 +74,22 @@ def test_mha2nnunet(
             assert path_out_expected.exists(), f"Could not find output file at {path_out_expected}!"
 
             # read images
-            img = sitk.GetArrayFromImage(sitk.ReadImage(str(path_out)))
-            img_expected = sitk.GetArrayFromImage(sitk.ReadImage(str(path_out_expected)))
+            img = sitk.ReadImage(str(path_out))
+            img_expected = sitk.ReadImage(str(path_out_expected))
 
             # compare images
-            assert_allclose(img_expected, img)
+            assert_allclose(sitk.GetArrayFromImage(img_expected), sitk.GetArrayFromImage(img))
+
+            # check origin and direction (nnUNet checks this too)
+            if case_origin is None:
+                case_origin = img.GetOrigin()
+            else:
+                assert case_origin == img.GetOrigin(), "Origin must match between sequences!"
+            if case_direction is None:
+                case_direction = img.GetDirection()
+            else:
+                assert case_direction == img.GetDirection(), "Direction must match between sequences!"
+                
 
         # check annotation
         # construct paths
