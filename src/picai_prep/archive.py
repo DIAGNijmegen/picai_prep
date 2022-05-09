@@ -36,7 +36,7 @@ class ArchiveConverter(ABC):
         self.silent = silent
         self._start_time = datetime.datetime.now()
 
-        logfile = f'dcm2mha_{datetime.datetime.now().strftime("%Y%m%d%H%M%S")}.log'
+        logfile = f'picai_prep_{datetime.datetime.now().strftime("%Y%m%d%H%M%S")}.log'
         logging.basicConfig(filemode='w', level=logging.INFO, format='%(message)s',
                             filename=self.output_dir / logfile)
 
