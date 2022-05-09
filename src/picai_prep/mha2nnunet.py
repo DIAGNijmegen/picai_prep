@@ -18,7 +18,7 @@ import json
 import jsonschema
 import SimpleITK as sitk
 from pathlib import Path
-from typing import List, Optional, Any, Dict, Tuple
+from typing import List, Optional, Any, Dict, Tuple, Callable
 import dataclasses
 from dataclasses import dataclass
 
@@ -102,6 +102,7 @@ class MHA2nnUNetConverter(ArchiveConverter):
         output_path: PathLike,
         settings_path: PathLike,
         annotations_path: Optional[PathLike] = None,
+        lbl_transformation: Optional[Callable[[sitk.Image], sitk.Image]] = None,
         out_dir_scans: PathLike = "imagesTr",
         out_dir_annot: PathLike = "labelsTr",
         silent: bool = False,
@@ -138,6 +139,7 @@ class MHA2nnUNetConverter(ArchiveConverter):
         self.out_dir_scans = out_dir_scans
         self.out_dir_annot = out_dir_annot
         self.annotations_path = annotations_path
+        self.lbl_transformation = lbl_transformation
 
         self.next_history()  # create initial history step
         self.info("Provided mha2nnunet archive is valid.", self.get_history_report())  # report number of items
@@ -222,6 +224,7 @@ class MHA2nnUNetConverter(ArchiveConverter):
                 scans=scans,
                 lbl=lbl,
                 settings=self.preprocessing_settings,
+                lbl_transformation=self.lbl_transformation,
                 name=conv_item.subject_id
             )
 
