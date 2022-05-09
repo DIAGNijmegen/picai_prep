@@ -17,10 +17,10 @@ The MHA → nnUNet conversion includes resampling sequences to a shared voxel sp
 `pip install git+https://github.com/DIAGNijmegen/picai_prep`
 
 ## Usage
-The preprocessing pipeline consists of four independent stages: [DICOM][dicom-archive] → [MHA][mha-archive] → nnUNet → nnDetection. These three conversion steps can be performed independently. See below for documentation on each step.
+The preprocessing pipeline consists of four independent stages: [DICOM][dicom-archive] → [MHA][mha-archive] → [nnUNet][nnunet-archive] → [nnDetection][nndetection-archive]. The three conversion steps between these four stages can be performed independently. See below for documentation on each step.
 
 ### MHA → nnUNet
-The conversion to nnUNet is controlled through a configuration file which lists all input sequences (and optionally, annotations). This configuration file specifies which sequences should be selected from the available (MHA) sequences. An excerpt of the format is given below:
+The conversion from [MHA archive][mha-archive] to [nnUNet raw data format][nnunet-archive] is controlled through a configuration file which lists all input sequences (and optionally, annotations). This configuration file specifies which sequences should be selected from the available (MHA) sequences. An excerpt of the format is given below:
 
 ```json
 "dataset_json": {
@@ -34,13 +34,13 @@ The conversion to nnUNet is controlled through a configuration file which lists 
 "archive": [
     {
         "patient_id": "ProstateX-0000",
-        "study_id": "07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711",
+        "study_id": "07-07-2011",
         "scan_paths": [
-            "ProstateX-0000/ProstateX-0000_07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711_t2w.mha",
-            "ProstateX-0000/ProstateX-0000_07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711_adc.mha",
-            "ProstateX-0000/ProstateX-0000_07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711_hbv.mha"
+            "ProstateX-0000/ProstateX-0000_07-07-2011_t2w.mha",
+            "ProstateX-0000/ProstateX-0000_07-07-2011_adc.mha",
+            "ProstateX-0000/ProstateX-0000_07-07-20111_hbv.mha"
         ],
-        "annotation_path": "ProstateX-0000_07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711.nii.gz"
+        "annotation_path": "ProstateX-0000_07-07-2011.nii.gz"
     },
 ]
 ```
@@ -48,11 +48,11 @@ The conversion to nnUNet is controlled through a configuration file which lists 
 The full configuration file can be found [here](tests/output-expected/mha2nnunet_settings.json). This configuration file can be generated:
 
 ```python
-from picai_prep.examples.mha2nnunet.sample_archive import generate_mha2nnunet_settings
+from picai_prep.examples.mha2nnunet.picai_archive import generate_mha2nnunet_settings
 
 generate_mha2nnunet_settings(
-    archive_dir="/path/to/picai_public_images/",
-    output_path="/path/to/workdir/dcm2mha_settings.json"
+    archive_dir="/input/images/",
+    output_path="/home/workdir/mha2nnunet_settings.json"
 )
 ```
 
@@ -76,6 +76,18 @@ Or from the command line:
 
 ```bash
 python -m picai_prep mha2nnunet --input /input/path/to/mha/archive --annotations /input/path/to/annotations --output /output/path/to/nnUNet_raw_data --json /path/to/mha2nnunet_settings.json
+```
+
+Or using a Docker container:
+
+```bash
+docker run -v /path/to/picai_data:/input \
+           -v /path/to/nnUNet_raw_data:/output/ \
+           picai_nnunet python -m picai_prep mha2nnunet \
+           --input /input/images \
+           --annotations /input/labels/csPCa_lesion_delineations/human_expert/resampled \
+           --output /output/nnUNet_raw_data \
+           --json /input/mha2nnunet_settings.json
 ```
 
 ### nnUNet → nnDetection
