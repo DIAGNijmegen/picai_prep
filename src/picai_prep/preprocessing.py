@@ -335,7 +335,9 @@ class Sample:
             # check connected components of annotation
             lbl = sitk.GetArrayFromImage(self.lbl)
             _, num_gt_lesions = ndimage.label(lbl, structure=np.ones((3, 3, 3)))
-            assert self.num_gt_lesions == num_gt_lesions, "Label has changed due to resampling/other errors!"
+            assert self.num_gt_lesions == num_gt_lesions, \
+                f"Label has changed due to resampling/other errors for {self.name}! " \
+                + f"Have {self.num_gt_lesions} -> {num_gt_lesions} isolated ground truth lesions"
 
 
 def translate_pred_to_reference_scan(
