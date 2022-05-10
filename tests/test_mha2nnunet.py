@@ -89,7 +89,6 @@ def test_mha2nnunet(
                 case_direction = img.GetDirection()
             else:
                 assert case_direction == img.GetDirection(), "Direction must match between sequences!"
-                
 
         # check annotation
         # construct paths
