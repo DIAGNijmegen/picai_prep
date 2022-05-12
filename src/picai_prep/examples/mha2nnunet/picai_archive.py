@@ -111,11 +111,11 @@ def generate_mha2nnunet_settings(
         "preprocessing": {
             "matrix_size": [
                 20,
-                160,
-                160
+                320,
+                320
             ],
             "spacing": [
-                3.6,
+                3.0,
                 0.5,
                 0.5
             ]
