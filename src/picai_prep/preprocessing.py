@@ -253,7 +253,10 @@ class Sample:
     lbl: Optional[sitk.Image]
     name: Optional[str]
     settings: PreprocessingSettings
-    lbl_transformation: Optional[Callable[[sitk.Image], sitk.Image]] = None
+    lbl_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
+    lbl_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
+    scan_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
+    scan_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
     num_gt_lesions: Optional[int] = None
 
     def __post_init__(self):
@@ -334,9 +337,13 @@ class Sample:
 
     def preprocess(self):
         """Perform all preprocessing steps"""
-        if self.lbl is not None and self.lbl_transformation:
+        # user-defined preprocessing steps
+        if self.lbl is not None and self.lbl_preprocess_func:
             # apply label transformation
-            self.lbl = self.lbl_transformation(self.lbl)
+            self.lbl = self.lbl_preprocess_func(self.lbl)
+        if self.scan_preprocess_func:
+            # apply scan transformation
+            self.scans = [self.scan_preprocess_func(scan) for scan in self.scans]
 
         if self.settings.align_physical_space:
             # align sequences based on metadata
@@ -358,6 +365,14 @@ class Sample:
             assert self.num_gt_lesions == num_gt_lesions, \
                 f"Label has changed due to resampling/other errors for {self.name}! " \
                 + f"Have {self.num_gt_lesions} -> {num_gt_lesions} isolated ground truth lesions"
+
+        # user-defined postprocessing steps
+        if self.lbl is not None and self.lbl_postprocess_func:
+            # apply label transformation
+            self.lbl = self.lbl_postprocess_func(self.lbl)
+        if self.scan_postprocess_func:
+            # apply scan transformation
+            self.scans = [self.scan_postprocess_func(scan) for scan in self.scans]
 
 
 def translate_pred_to_reference_scan(
