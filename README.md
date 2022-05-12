@@ -1,15 +1,14 @@
+# Preprocessing Utilities for 3D Medical Imaging
 ![Tests](https://github.com/DIAGNijmegen/picai_prep/actions/workflows/tests.yml/badge.svg)
 
-# Preprocessing scripts for 3D medical images
+This repository contains standardized functions to process 3D medical imaging —with its processing strategy being geared towards clinically significant prostate cancer (csPCa) detection in MRI. It is used for the official preprocessing pipeline of the [PI-CAI challenge](https://pi-cai.grand-challenge.org/).
 
-This repository contains code to process 3D medical images, geared towards prostate cancer detection in MRI. This repository contains the official preprocessing pipeline of the [Prostate Imaging: Cancer AI (PI-CAI)](https://pi-cai.grand-challenge.org/) Grand Challenge.
+## Supported Conversions
+- [`DICOM Archive`][dicom-archive] → [`MHA Archive`][mha-archive]
+- [`MHA Archive`][mha-archive] → [`nnU-Net Raw Data Archive`][nnunet-archive]
+- [`nnU-Net Raw Data Archive`][nnunet-archive] → [`nnDetection Raw Data Archive`][nndetection-archive]
 
-Supported conversions:
-- [DICOM archive][dicom-archive] → [MHA archive][mha-archive]
-- [MHA archive][mha-archive] → [nnUNet raw data archive][nnunet-archive]
-- [nnUNet raw data archive][nnunet-archive] → [nnDetection raw data archive][nndetection-archive]
-
-The MHA → nnUNet conversion includes resampling sequences to a shared voxel spacing, taking a centre crop, and optionally aligning sequences based on the scans's metadata. [This function](src/picai_prep/preprocessing.py#L462) can also be used independently.
+Note, [`MHA Archive`][mha-archive] → [`nnU-Net Raw Data Archive`][nnunet-archive] conversion includes resampling sequences to a shared voxel spacing, taking a centre crop, and optionally, aligning sequences based on the scans's metadata. These [steps](src/picai_prep/preprocessing.py#L462) can also be applied independently.
 
 ## Installation
 `picai_prep` is pip-installable:
@@ -17,10 +16,62 @@ The MHA → nnUNet conversion includes resampling sequences to a shared voxel sp
 `pip install git+https://github.com/DIAGNijmegen/picai_prep`
 
 ## Usage
-The preprocessing pipeline consists of four independent stages: [DICOM][dicom-archive] → [MHA][mha-archive] → [nnUNet][nnunet-archive] → [nnDetection][nndetection-archive]. The three conversion steps between these four stages can be performed independently. See below for documentation on each step.
+Our preprocessing pipeline consists of four independent stages: [`DICOM Archive`][dicom-archive] → [`MHA Archive`][mha-archive] → [`nnU-Net Raw Data Archive`][nnunet-archive] → [`nnDetection Raw Data Archive`][nndetection-archive]. All three conversion steps between these four stages can be performed independently. See below for documentation on each step.
 
-### MHA → nnUNet
-The conversion from [MHA archive][mha-archive] to [nnUNet raw data format][nnunet-archive] is controlled through a configuration file which lists all input sequences (and optionally, annotations). This configuration file specifies which sequences should be selected from the available (MHA) sequences. An excerpt of the format is given below:
+
+### DICOM Archive → MHA Archive
+Conversion from [`DICOM Archive`][dicom-archive] → [`MHA Archive`][mha-archive] is controlled through a configuration file, which lists all DICOM sequences. This configuration file specifies how different sequences should be selected from the available DICOM sequences. An excerpt of the format is given below:
+
+```json
+"mappings": {
+    "t2w": {
+        "SeriesDescription": ["t2_tse_tra"]
+    },
+},
+"archive": [
+    {
+        "patient_id": "ProstateX-0000",
+        "study_id": "07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711",
+        "path": "ProstateX-0000/07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711/3.000000-t2tsesag-87368"
+    },
+]
+```
+
+Full configuration file for this excerpt, can be found [here](tests/output-expected/dcm2mha_settings.json). It can also be generated, as follows:
+
+```python
+from picai_prep.examples.dcm2mha.sample_archive import generate_dcm2mha_settings
+
+generate_dcm2mha_settings(
+    archive_dir="/path/to/picai_public_images/",
+    output_path="/path/to/picai_public_images/dcm2mha_settings.json"
+)
+```
+
+Using this configuration file, the [`DICOM Archive`][dicom-archive] → [`MHA Archive`][mha-archive] conversion can be performed using Python:
+
+```python
+from picai_prep import Dicom2MHAConverter
+
+archive = Dicom2MHAConverter(
+    input_path="/input/path/to/dicom/archive",
+    output_path="/output/path/to/mha/archive",
+    settings_path="/path/to/dcm2mha_settings.json",
+)
+archive.convert()
+```
+
+Or from the command line:
+
+```bash
+python -m picai_prep dcm2mha --input /input/path/to/dicom/archive --output /output/path/to/mha/archive --json /path/to/dcm2mha_settings.json
+```
+
+For more examples of `DICOM Archive` structures, see [examples/dcm2mha/](src/picai_prep/examples/dcm2mha/).
+
+#
+### MHA Archive → nnU-Net Raw Data Archive
+Conversion from the [`MHA Archive`][mha-archive] format to the [`nnU-Net Raw Data Archive`][nnunet-archive] format is controlled through a configuration file, which lists all input sequences (and optionally, annotations). This configuration file specifies which sequences should be selected from the available (MHA) sequences. An excerpt of the format is given below:
 
 ```json
 "dataset_json": {
@@ -45,7 +96,7 @@ The conversion from [MHA archive][mha-archive] to [nnUNet raw data format][nnune
 ]
 ```
 
-The full configuration file can be found [here](tests/output-expected/mha2nnunet_settings.json). This configuration file can be generated:
+Full configuration file for this except, can be found [here](tests/output-expected/mha2nnunet_settings.json). It can also be generated, as follows:
 
 ```python
 from picai_prep.examples.mha2nnunet.picai_archive import generate_mha2nnunet_settings
@@ -56,9 +107,7 @@ generate_mha2nnunet_settings(
 )
 ```
 
-For more examples of MHA archive structures, see [examples/mha2nnunet/](src/picai_prep/examples/mha2nnunet/).
-
-Using this configuration file, the MHA → nnUNet conversion can be performed from Python:
+Using this configuration file, the `MHA Archive` → `nnU-Net Raw Data Archive` conversion can be performed using Python:
 
 ```python
 from picai_prep import MHA2nnUNetConverter
@@ -89,9 +138,12 @@ docker run -v /path/to/picai_data:/input \
            --output /output/nnUNet_raw_data \
            --json /input/mha2nnunet_settings.json
 ```
+For more examples of `MHA Archive` structures, see [examples/mha2nnunet/](src/picai_prep/examples/mha2nnunet/).
 
-### nnUNet → nnDetection
-For specific applications, the nnUNet and nnDetection raw data formats can be converted to eachother. The conversion from nnDetection to nnUNet can always be performed, see [nnDetection's documentation](https://github.com/MIC-DKFZ/nnDetection#nnu-net-for-detection). The conversion from nnUNet to nnDetection requires instances to be non-touching, such that they can be correctly identified as individual objects. If this assumption holds, raw data archive can be converted from nnUNet to nnDetection using Python:
+# 
+
+### nnU-Net Raw Data Archive → nnDetection Raw Data Archive
+For certain applications, the nnU-Net and nnDetection raw data archive formats can be converted to each other. Conversion from the nnDetection to nnU-Net structure can always be performed (see [nnDetection's documentation](https://github.com/MIC-DKFZ/nnDetection#nnu-net-for-detection)). However, conversion from nnU-Net to nnDetection structure requires object instances to be non-connected and non-overlapping, such that they can be correctly identified as separate, individual objects. If this assumption holds true, [`nnU-Net Raw Data Archive`][nnunet-archive] → [`nnDetection Raw Data Archive`][nndetection-archive] conversion can be performed using Python:
 
 ```python
 from picai_prep import nnunet2nndet
@@ -108,57 +160,9 @@ Or from the command line:
 python -m picai_prep nnunet2nndet --input /input/path/to/nnUNet_raw_data/Task100_test --output /output/path/to/nnDet_raw_data/Task100_test
 ```
 
-### DICOM → MHA
-The conversion from [DICOM][dicom-archive] to [MHA archive][mha-archive] is controlled through a configuration file which lists all DICOM sequences. This configuration file specifies how different sequences should be selected from the available DICOM sequences. An excerpt of the format is given below:
+#
 
-```json
-"mappings": {
-    "t2w": {
-        "SeriesDescription": ["t2_tse_tra"]
-    },
-},
-"archive": [
-    {
-        "patient_id": "ProstateX-0000",
-        "study_id": "07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711",
-        "path": "ProstateX-0000/07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711/3.000000-t2tsesag-87368"
-    },
-]
-```
-
-The full configuration file can be found [here](tests/output-expected/dcm2mha_settings.json). This configuration file can be generated:
-
-```python
-from picai_prep.examples.dcm2mha.sample_archive import generate_dcm2mha_settings
-
-generate_dcm2mha_settings(
-    archive_dir="/path/to/picai_public_images/",
-    output_path="/path/to/picai_public_images/dcm2mha_settings.json"
-)
-```
-
-For more examples, see [examples/dcm2mha/](src/picai_prep/examples/dcm2mha/).
-
-Using this configuration file, the DICOM → MHA conversion can be performed from Python:
-
-```python
-from picai_prep import Dicom2MHAConverter
-
-archive = Dicom2MHAConverter(
-    input_path="/input/path/to/dicom/archive",
-    output_path="/output/path/to/mha/archive",
-    settings_path="/path/to/dcm2mha_settings.json",
-)
-archive.convert()
-```
-
-Or from the command line:
-
-```bash
-python -m picai_prep dcm2mha --input /input/path/to/dicom/archive --output /output/path/to/mha/archive --json /path/to/dcm2mha_settings.json
-```
-
-### What is a DICOM archive?
+### What is a 'DICOM Archive'?
 With a DICOM archive we mean a dataset that comprises the scans as DICOM (.dcm) files, such as the [ProstateX dataset](https://wiki.cancerimagingarchive.net/pages/viewpage.action?pageId=23691656). Typically, such an archive is structured in the following way:
 
 ```
@@ -173,8 +177,9 @@ With a DICOM archive we mean a dataset that comprises the scans as DICOM (.dcm) 
 
 In a DICOM archive multiple sequences (such as axial T2-weighted scans) can exist, and each patient can have multiple studies. A single study can even have multiple instances of the same sequence, for example a repeated transversal T2-weighted scan when the first scan experienced motion blur artefacts.
 
+#
 
-### What is an MHA archive?
+### What is an 'MHA Archive'?
 With an MHA archive we mean a dataset that comprises the scans as MHA (.mha) files, such as the [PI-CAI dataset](https://zenodo.org/record/6517398#.YnU5uhNBwUE). In case of the PI-CAI Challenge: Public Training and Development Dataset, the archive is structured in the following way (after extracting the zips):
 
 ```
@@ -186,6 +191,31 @@ With an MHA archive we mean a dataset that comprises the scans as MHA (.mha) fil
 
 For the PI-CAI dataset, the available modalities are `t2w` (axial T2-weighted scan), `adc` (apparent diffusion coefficient map), `hbv` (calculated high b-value scan), `sag` (sagittal T2-weighted scan) and `cor` (coronal T2-weighted scan).
 
+## Reference
+If you are using this codebase or some part of it, please cite the following article:
+
+● [A. Saha, J. J. Twilt, J. S. Bosma, B. van Ginneken, D. Yakar, M. Elschot, J. Veltman, J. J. Fütterer, M. de Rooij, H. Huisman, "Artificial Intelligence and Radiologists at Prostate Cancer Detection in MRI: The PI-CAI Challenge (Study Protocol)", DOI: 10.5281/zenodo.6522364](https://zenodo.org/record/6522364#.YnessuhBy2Q)
+
+**BibTeX:**
+```
+@ARTICLE{PICAI_BIAS,
+    author = {Anindo Saha, Jasper J. Twilt, Joeran S. Bosma, Bram van Ginneken, Derya Yakar, Mattijs Elschot, Jeroen Veltman, Jurgen Fütterer, Maarten de Rooij, Henkjan Huisman},
+    title  = {{Artificial Intelligence and Radiologists at Prostate Cancer Detection in MRI: The PI-CAI Challenge (Study Protocol)}}, 
+    year   = {2022},
+    doi    = {10.5281/zenodo.6522364}
+}
+```
+
+## Managed By
+Diagnostic Image Analysis Group,
+Radboud University Medical Center,
+Nijmegen, The Netherlands
+
+## Contact Information
+- Joeran Bosma: Joeran.Bosma@radboudumc.nl
+- Stan Noordman: Stan.Noordman@radboudumc.nl
+- Anindo Saha: Anindya.Shaha@radboudumc.nl
+- Henkjan Huisman: Henkjan.Huisman@radboudumc.nl
 
 [dicom-archive]: #what-is-a-dicom-archive
 [mha-archive]: #what-is-an-mha-archive
