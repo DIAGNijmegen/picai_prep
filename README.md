@@ -1,4 +1,4 @@
-# Preprocessing Utilities for 3D Medical Images and Image Archives
+# Preprocessing Utilities for 3D Medical Image Archives
 ![Tests](https://github.com/DIAGNijmegen/picai_prep/actions/workflows/tests.yml/badge.svg)
 
 This repository contains standardized functions to process 3D medical images and image archives —with its processing strategy being geared towards clinically significant prostate cancer (csPCa) detection in MRI. It is used for the official preprocessing pipeline of the [PI-CAI challenge](https://pi-cai.grand-challenge.org/).
