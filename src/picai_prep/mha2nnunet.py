@@ -276,6 +276,12 @@ class MHA2nnUNetConverter(ArchiveConverter):
                     json.dump(json_dict, fp, indent=4)
 
     def convert(self):
+        """
+        Perform conversion steps:
+        1. Gather metadata
+        2. Preprocess and write scans
+        3. Generate dataset.json
+        """
         for step in [self._gather, self._write]:
             if self.has_valid_items:
                 step()

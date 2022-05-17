@@ -32,6 +32,7 @@
         "1": "CT",
         "2": "HBV"
     },
+    "dim": 3,
     "target_class": 0,
     "test_labels": false
 }

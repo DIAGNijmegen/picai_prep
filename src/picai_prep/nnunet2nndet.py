@@ -94,9 +94,13 @@ def nnunet2nndet_dataset_json_conversion(
     with open(path_src) as fp:
         ds = json.load(fp)
 
-    # ensure dataset has 'modalities' tag (whereas nnUNet used 'modality')
+    # ensure dataset config has 'modalities' tag (whereas nnUNet used 'modality')
     if 'modalities' not in ds:
         ds['modalities'] = ds['modality']
+
+    # ensure dataset config has 'dim' tag
+    if 'dim' not in ds:
+        ds['dim'] = 3
 
     # change label counting, from 0=background, to 0=first structure of interest
     if "background" in ds["labels"].values():

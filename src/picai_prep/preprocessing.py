@@ -320,20 +320,23 @@ class Sample:
 
     def copy_physical_metadata(self):
         """Align the origin and direction of each scan, and label"""
-        case_origin, case_direction = None, None
+        case_origin, case_direction, case_spacing = None, None, None
         for img in self.scans:
-            # copy origin and direction (nnUNet requires this to be voxel-perfect)
+            # copy metadata of first scan (nnUNet and nnDetection require this to match exactly)
             if case_origin is None:
                 case_origin = img.GetOrigin()
                 case_direction = img.GetDirection()
+                case_spacing = img.GetSpacing()
             else:
                 img.SetOrigin(case_origin)
                 img.SetDirection(case_direction)
+                img.SetSpacing(case_spacing)
 
         if self.lbl is not None:
-            assert case_origin is not None and case_direction is not None
+            assert case_origin is not None and case_direction is not None and case_spacing is not None
             self.lbl.SetOrigin(case_origin)
             self.lbl.SetDirection(case_direction)
+            self.lbl.SetSpacing(case_spacing)
 
     def preprocess(self):
         """Perform all preprocessing steps"""
