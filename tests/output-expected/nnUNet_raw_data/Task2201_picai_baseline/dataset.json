@@ -47,16 +47,8 @@
             "label": "./labelsTr/10872_1000888.nii.gz"
         },
         {
-            "image": "./imagesTr/10921_1000938.nii.gz",
-            "label": "./labelsTr/10921_1000938.nii.gz"
-        },
-        {
             "image": "./imagesTr/10961_1000980.nii.gz",
             "label": "./labelsTr/10961_1000980.nii.gz"
-        },
-        {
-            "image": "./imagesTr/11032_1001052.nii.gz",
-            "label": "./labelsTr/11032_1001052.nii.gz"
         },
         {
             "image": "./imagesTr/11137_1001160.nii.gz",
