@@ -15,5 +15,6 @@ if __name__ == '__main__':
         },
         license='Apache License, Version 2.0',
         package_dir={"": "src"},  # our packages live under src, but src is not a package itself
-        packages=setuptools.find_packages('src', exclude=['tests'])
+        packages=setuptools.find_packages('src', exclude=['tests']),
+        exclude_package_data={'': ['tests']},
     )
