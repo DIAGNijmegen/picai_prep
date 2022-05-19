@@ -38,24 +38,16 @@ mha2nnunet_schema = {
             "type": "object",
             "description": "Preprocessing parameters",
             "properties": {
-                "align_physical_space": {
-                    "description": "...",
-                    "type": "boolean"
-                },
-                "crop_to_first_physical_centre": {
-                    "description": "...",
-                    "type": "boolean"
-                },
                 "physical_size": {
-                    "description": "...",
+                    "description": "Target field-of-view in mm (z, y, x). Automatically calculated if `matrix_size` and `spacing` are set.",
                     "$ref": "#/$defs/3d"
                 },
                 "matrix_size": {
-                    "description": "Defaults to [20, 160, 160] if neither this or 'physical_size' is set.",
+                    "description": "Target matrix size. Automatically calculated if `physical_size` and `spacing` are set.",
                     "$ref": "#/$defs/3d"
                 },
                 "spacing": {
-                    "description": "...",
+                    "description": "Target resolution in mm/voxel (z, y, x). Automatically calculated if `physical_size` and `matrix_size` are set.",
                     "$ref": "#/$defs/3d"
                 }
             },

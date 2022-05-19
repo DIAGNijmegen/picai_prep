@@ -1,0 +1,72 @@
+{
+    "dataset_json": {
+        "task": "Task2201_picai_baseline",
+        "description": "bpMRI scans from PI-CAI dataset to train nnUNet baseline",
+        "tensorImageSize": "4D",
+        "reference": "",
+        "licence": "",
+        "release": "1.0",
+        "modality": {
+            "0": "T2W",
+            "1": "CT",
+            "2": "HBV"
+        },
+        "labels": {
+            "0": "background",
+            "1": "lesion"
+        }
+    },
+    "preprocessing": {},
+    "archive": [
+        {
+            "patient_id": "10032",
+            "study_id": "1000032",
+            "scan_paths": [
+                "10032/10032_1000032_t2w.mha",
+                "10032/10032_1000032_adc.mha",
+                "10032/10032_1000032_hbv.mha"
+            ],
+            "annotation_path": "10032_1000032.nii.gz"
+        },
+        {
+            "patient_id": "10059",
+            "study_id": "1000059",
+            "scan_paths": [
+                "10059/10059_1000059_t2w.mha",
+                "10059/10059_1000059_adc.mha",
+                "10059/10059_1000059_hbv.mha"
+            ],
+            "annotation_path": "10059_1000059.nii.gz"
+        },
+        {
+            "patient_id": "10699",
+            "study_id": "1000715",
+            "scan_paths": [
+                "10699/10699_1000715_t2w.mha",
+                "10699/10699_1000715_adc.mha",
+                "10699/10699_1000715_hbv.mha"
+            ],
+            "annotation_path": "10699_1000715.nii.gz"
+        },
+        {
+            "patient_id": "10730",
+            "study_id": "1000746",
+            "scan_paths": [
+                "10730/10730_1000746_t2w.mha",
+                "10730/10730_1000746_adc.mha",
+                "10730/10730_1000746_hbv.mha"
+            ],
+            "annotation_path": "10730_1000746.nii.gz"
+        },
+        {
+            "patient_id": "10868",
+            "study_id": "1000884",
+            "scan_paths": [
+                "10868/10868_1000884_t2w.mha",
+                "10868/10868_1000884_adc.mha",
+                "10868/10868_1000884_hbv.mha"
+            ],
+            "annotation_path": "10868_1000884.nii.gz"
+        }
+    ]
+}

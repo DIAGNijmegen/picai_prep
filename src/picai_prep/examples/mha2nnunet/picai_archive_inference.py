@@ -97,16 +97,17 @@ def generate_mha2nnunet_settings(
             }
         },
         "preprocessing": {
-            "matrix_size": [
-                20,
-                160,
-                160
-            ],
-            "spacing": [
-                3.6,
-                0.5,
-                0.5
-            ]
+            # optionally, resample and perform centre crop:
+            # "matrix_size": [
+            #     20,
+            #     160,
+            #     160
+            # ],
+            # "spacing": [
+            #     3.6,
+            #     0.5,
+            #     0.5
+            # ]
         },
         "archive": archive_list
     }
