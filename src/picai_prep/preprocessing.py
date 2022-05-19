@@ -15,10 +15,11 @@
 
 import SimpleITK as sitk
 import numpy as np
+from numpy.testing import assert_allclose
 from dataclasses import dataclass
 from scipy import ndimage
 
-from typing import List, Tuple, Callable, Optional, Union, Any, Iterable, cast
+from typing import List, Tuple, Callable, Optional, Union, Any, Iterable
 try:
     import numpy.typing as npt
 except ImportError:  # pragma: no cover
@@ -37,7 +38,7 @@ class PreprocessingSettings():
         or to the new centre after aligning sequences
     - align_segmentation: whether to align the scans using the centroid of the provided segmentation
     """
-    matrix_size: Iterable[int] = (20, 160, 160)
+    matrix_size: Optional[Iterable[int]] = None
     spacing: Optional[Iterable[float]] = None
     physical_size: Optional[Iterable[float]] = None
     align_physical_space: bool = False
@@ -45,8 +46,7 @@ class PreprocessingSettings():
     align_segmentation: Optional[sitk.Image] = None
 
     def __post_init__(self):
-        if self.physical_size is None:
-            assert self.spacing, "Need either physical_size or spacing"
+        if self.physical_size is None and self.spacing is not None and self.matrix_size is not None:
             # calculate physical size
             self.physical_size = [
                 voxel_spacing * num_voxels
@@ -56,8 +56,7 @@ class PreprocessingSettings():
                 )
             ]
 
-        if self.spacing is None:
-            assert self.physical_size, "Need either physical_size or spacing"
+        if self.spacing is None and self.physical_size is not None and self.matrix_size is not None:
             # calculate spacing
             self.spacing = [
                 size / num_voxels
@@ -66,14 +65,6 @@ class PreprocessingSettings():
                     self.matrix_size
                 )
             ]
-
-    @property
-    def _spacing(self) -> Iterable[float]:
-        return cast(Iterable[float], self.spacing)
-
-    @property
-    def _physical_size(self) -> Iterable[float]:
-        return cast(Iterable[float], self.physical_size)
 
 
 def resample_img(
@@ -318,7 +309,7 @@ class Sample:
         if self.lbl is not None:
             self.lbl = crop_or_pad(self.lbl, size=self.settings.matrix_size)
 
-    def copy_physical_metadata(self):
+    def align_physical_metadata(self, check_almost_equal=True):
         """Align the origin and direction of each scan, and label"""
         case_origin, case_direction, case_spacing = None, None, None
         for img in self.scans:
@@ -328,6 +319,13 @@ class Sample:
                 case_direction = img.GetDirection()
                 case_spacing = img.GetSpacing()
             else:
+                if check_almost_equal:
+                    # check if current scan's metadata is almost equal to the first scan
+                    assert_allclose(img.GetOrigin(), case_origin)
+                    assert_allclose(img.GetDirection(), case_direction)
+                    assert_allclose(img.GetSpacing(), case_spacing)
+
+                # copy over first scan's metadata to current scan
                 img.SetOrigin(case_origin)
                 img.SetDirection(case_direction)
                 img.SetSpacing(case_spacing)
@@ -355,11 +353,12 @@ class Sample:
         # resample scans and label
         self.resample()
 
-        # perform centre crop
-        self.centre_crop()
+        if self.settings.matrix_size is not None:
+            # perform centre crop
+            self.centre_crop()
 
         # copy physical metadata to align subvoxel differences between sequences
-        self.copy_physical_metadata()
+        self.align_physical_metadata()
 
         if self.lbl is not None:
             # check connected components of annotation
