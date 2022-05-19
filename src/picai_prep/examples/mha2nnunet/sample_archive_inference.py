@@ -111,5 +111,12 @@ def generate_mha2nnunet_settings(
         "archive": archive_list
     }
 
+    if not len(archive_list):
+        raise ValueError(f"Did not find any MHA scans in {archive_dir}, aborting.")
+
     with open(output_path, "w") as fp:
         json.dump(mha2nnunet_settings, fp, indent=4)
+
+    print(f""""
+    Saved mha2nnunet_settings to {output_path}, with {len(archive_list)} cases.
+    """)

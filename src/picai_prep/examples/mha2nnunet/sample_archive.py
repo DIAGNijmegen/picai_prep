@@ -16,6 +16,7 @@
 import json
 import os
 from tqdm import tqdm
+from typing import Optional
 
 from picai_prep.data_utils import PathLike
 
@@ -23,6 +24,7 @@ from picai_prep.data_utils import PathLike
 def generate_mha2nnunet_settings(
     archive_dir: PathLike,
     output_path: PathLike,
+    annotations_dir: Optional[PathLike] = None,
 ):
     """
     Create mha2nnunet_settings.json (with annotations) for an MHA archive with the following structure:
@@ -76,6 +78,12 @@ def generate_mha2nnunet_settings(
             # construct annotation path
             annotation_path = f"{subject_id}.nii.gz"
 
+            if annotations_dir is not None:
+                # check if annotation exists
+                if not os.path.exists(os.path.join(annotations_dir, annotation_path)):
+                    # could not find annotation, skip case
+                    continue
+
             if all_scans_found:
                 # store info for complete studies
                 archive_list += [{
@@ -118,5 +126,12 @@ def generate_mha2nnunet_settings(
         "archive": archive_list
     }
 
+    if not len(archive_list):
+        raise ValueError(f"Did not find any MHA scans in {archive_dir}, aborting.")
+
     with open(output_path, "w") as fp:
         json.dump(mha2nnunet_settings, fp, indent=4)
+
+    print(f""""
+    Saved mha2nnunet_settings to {output_path}, with {len(archive_list)} cases.
+    """)

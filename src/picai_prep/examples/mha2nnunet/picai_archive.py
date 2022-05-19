@@ -24,7 +24,7 @@ from picai_prep.data_utils import PathLike
 def generate_mha2nnunet_settings(
     archive_dir: PathLike,
     output_path: PathLike,
-    annotations_dir: Optional[PathLike],
+    annotations_dir: Optional[PathLike] = None,
 ):
     """
     Create mha2nnunet_settings.json (for inference) for an MHA archive with the following structure:
@@ -122,6 +122,9 @@ def generate_mha2nnunet_settings(
         },
         "archive": archive_list
     }
+
+    if not len(archive_list):
+        raise ValueError(f"Did not find any MHA scans in {archive_dir}, aborting.")
 
     with open(output_path, "w") as fp:
         json.dump(mha2nnunet_settings, fp, indent=4)

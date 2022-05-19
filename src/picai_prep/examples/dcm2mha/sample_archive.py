@@ -108,8 +108,15 @@ def generate_dcm2mha_settings(
         "archive": archive_list,
     }
 
+    if not len(archive_list):
+        raise ValueError("Did not find any DICOM series, aborting.")
+
     with open(output_path, "w") as fp:
         json.dump(archive, fp, indent=4)
+
+    print(f""""
+    Saved dcm2mha_settings to {output_path}, with {len(archive_list)} DICOM series.
+    """)
 
 
 if __name__ == '__main__':

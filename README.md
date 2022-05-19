@@ -98,14 +98,23 @@ Conversion from the [`MHA Archive`][mha-archive] format to the [`nnU-Net Raw Dat
 
 Full configuration file for this except, can be found [here](tests/output-expected/mha2nnunet_settings.json). It can also be generated, as follows:
 
+```bash
+python -m picai_prep mha2nnunet_settings --structure picai_archive --input /input/images/ --annotations /input/labels/csPCa_lesion_delineations/human_expert/resampled --json /workdir/mha2nnunet_settings.json
+```
+
+Or from Python:
+
 ```python
 from picai_prep.examples.mha2nnunet.picai_archive import generate_mha2nnunet_settings
 
 generate_mha2nnunet_settings(
     archive_dir="/input/images/",
-    output_path="/home/workdir/mha2nnunet_settings.json"
+    annotations_dir="/input/labels/csPCa_lesion_delineations/human_expert/resampled
+    output_path="/workdir/mha2nnunet_settings.json",
 )
 ```
+
+The `--annotations` (command line) or `annotations_dir` (Python) parameter will check if the annotation is present in the specified folder. If not, the item will be skipped.
 
 Using this configuration file, the `MHA Archive` → `nnU-Net Raw Data Archive` conversion can be performed using Python:
 
