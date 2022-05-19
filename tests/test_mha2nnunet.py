@@ -199,8 +199,12 @@ def test_mha2nnunet_picai(
     These cases are typicaly very off-centre, and contain different field-of-views between sequences.
 
     Notes:
+    - 10032_1000032 has a different field-of-view between axial T2-weighted and diffusion scans.
+    - 10059_1000059 has a padded T2-weighted scan, and different field-of-view between sequences.
     - 10699_1000715_0002.nii.gz contains all diffusion scans, which is an accident of the released MHA scan.
-    - except for the scan above, all cases in output-expected are aligned between sequences.
+    - 10730_1000746 is similar to 10059_1000059, but padded on the other side.
+    - 10868_1000884 is pretty normal. T2-weighted has 21 slices, while diffusion has 19, which is representative.
+    - except for 10699_1000715_0002, all cases in output-expected are aligned between sequences.
     """
     picai_archive.generate_mha2nnunet_settings(
         archive_dir=input_dir,
@@ -218,16 +222,9 @@ def test_mha2nnunet_picai(
         subject_list=[
             "10032_1000032",
             "10059_1000059",
-            "10294_1000300",
             "10699_1000715",
             "10730_1000746",
             "10868_1000884",
-            "10872_1000888",
-            "10921_1000938",
-            "10961_1000980",
-            "11032_1001052",
-            "11137_1001160",
-            "11198_1001221",
         ]
     )
 

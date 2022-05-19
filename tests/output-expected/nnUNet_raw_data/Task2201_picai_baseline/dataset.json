@@ -15,7 +15,7 @@
         "1": "lesion"
     },
     "name": "picai_baseline",
-    "numTraining": 12,
+    "numTraining": 5,
     "numTest": 0,
     "training": [
         {
@@ -25,10 +25,6 @@
         {
             "image": "./imagesTr/10059_1000059.nii.gz",
             "label": "./labelsTr/10059_1000059.nii.gz"
-        },
-        {
-            "image": "./imagesTr/10294_1000300.nii.gz",
-            "label": "./labelsTr/10294_1000300.nii.gz"
         },
         {
             "image": "./imagesTr/10699_1000715.nii.gz",
@@ -41,22 +37,6 @@
         {
             "image": "./imagesTr/10868_1000884.nii.gz",
             "label": "./labelsTr/10868_1000884.nii.gz"
-        },
-        {
-            "image": "./imagesTr/10872_1000888.nii.gz",
-            "label": "./labelsTr/10872_1000888.nii.gz"
-        },
-        {
-            "image": "./imagesTr/10961_1000980.nii.gz",
-            "label": "./labelsTr/10961_1000980.nii.gz"
-        },
-        {
-            "image": "./imagesTr/11137_1001160.nii.gz",
-            "label": "./labelsTr/11137_1001160.nii.gz"
-        },
-        {
-            "image": "./imagesTr/11198_1001221.nii.gz",
-            "label": "./labelsTr/11198_1001221.nii.gz"
         }
     ],
     "test": []
