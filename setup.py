@@ -5,7 +5,7 @@ if __name__ == '__main__':
         long_description = fh.read()
 
     setuptools.setup(
-        version='1.1.6',
+        version='1.2',
         author_email='Joeran.Bosma@radboudumc.nl',
         long_description=long_description,
         long_description_content_type="text/markdown",
@@ -14,5 +14,6 @@ if __name__ == '__main__':
             "Bug Tracker": "https://github.com/DIAGNijmegen/picai_prep/issues"
         },
         license='Apache License, Version 2.0',
-        packages=['picai_prep', 'picai_prep.resources', 'picai_prep.examples.dcm2mha', 'picai_prep.examples.mha2nnunet'],
+        package_dir={"": "src"},  # our packages live under src, but src is not a package itself
+        packages=setuptools.find_packages('src', exclude=['tests'])
     )
