@@ -54,7 +54,7 @@ def generate_mha2nnunet_settings(
         if patient_id in ignore_files:
             continue
 
-        # collect list available studies
+        # collect list of available studies
         patient_dir = os.path.join(archive_dir, patient_id)
         files = os.listdir(patient_dir)
         files = [fn.replace(".mha", "") for fn in files if ".mha" in fn and "._" not in fn]

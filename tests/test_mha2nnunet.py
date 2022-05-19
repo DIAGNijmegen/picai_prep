@@ -20,10 +20,12 @@ from pathlib import Path
 from numpy.testing import assert_allclose
 import SimpleITK as sitk
 from typing import Optional, List
+import pytest
 
 from picai_prep.data_utils import PathLike
 from picai_prep.mha2nnunet import MHA2nnUNetConverter
 from picai_prep.examples.mha2nnunet import picai_archive
+from picai_prep.preprocessing import resample_to_reference_scan
 
 
 def test_mha2nnunet(
@@ -229,5 +231,38 @@ def test_mha2nnunet_picai(
     )
 
 
+@pytest.mark.parametrize("subject_id", [
+    "ProstateX-0000_07-07-2011",
+    "ProstateX-0001_07-08-2011",
+])
+def test_resample_to_reference_scan(
+    subject_id: str,
+    input_dir: PathLike = "tests/output-expected/mha/ProstateX",
+    annotations_dir: PathLike = "tests/input/annotations/ProstateX",
+    output_expected_dir: PathLike = "tests/output-expected/nnUNet_raw_data",
+    task_name: str = "Task100_test",
+):
+    """
+    Test resample_to_reference_scan by comparing the annotation with
+    annotation -> nnUNet preprocessed -> resample_to_reference_scan(annotation)
+    """
+    # read images
+    lbl = sitk.ReadImage(os.path.join(annotations_dir, f"{subject_id}.nii.gz"))
+    lbl_prep = sitk.ReadImage(os.path.join(output_expected_dir, task_name, "labelsTr", f"{subject_id}.nii.gz"))
+    reference_scan_original = sitk.ReadImage(os.path.join(input_dir, subject_id.split("_")[0], f"{subject_id}_t2w.mha"))
+    reference_scan_preprocessed = sitk.ReadImage(os.path.join(output_expected_dir, task_name, "imagesTr", f"{subject_id}_0000.nii.gz"))
+
+    # translate preprocessed label back to original scan's physical space
+    lbl_back = resample_to_reference_scan(
+        image=lbl_prep,
+        reference_scan_original=reference_scan_original,
+        reference_scan_preprocessed=reference_scan_preprocessed,
+        interpolator=sitk.sitkNearestNeighbor,
+    )
+
+    # compare lbl->prep->back with original lbl
+    assert_allclose(sitk.GetArrayFromImage(lbl_back), sitk.GetArrayFromImage(lbl))
+
+
 if __name__ == "__main__":
-    test_mha2nnunet_picai()
+    test_resample_to_reference_scan("ProstateX-0001_07-08-2011")

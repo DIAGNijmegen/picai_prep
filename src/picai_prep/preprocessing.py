@@ -287,28 +287,38 @@ class Sample:
             self.scans = [self.scan_postprocess_func(scan) for scan in self.scans]
 
 
-def translate_pred_to_reference_scan(
-    pred: "npt.NDArray[Any]",
-    reference_scan: sitk.Image,
-    out_spacing: Iterable[float] = (0.5, 0.5, 3.6),
-    is_label: bool = False
+def resample_to_reference_scan(
+    image: "Union[npt.NDArray[Any], sitk.Image]",
+    reference_scan_original: sitk.Image,
+    reference_scan_preprocessed: Optional[sitk.Image],
+    interpolator: sitk.ResampleImageFilter = sitk.sitkLinear,
 ) -> sitk.Image:
     """
-    Translate prediction back to physical space of input T2 scan
-    This function performs the reverse operation of the preprocess_study function
-    - pred: softmax / binary prediction
-    - reference_scan: SimpleITK image to which the prediction should be resampled and resized
-    - out_spacing: spacing to which the reference scan is resampled during preprocessing
+    Translate image/prediction/annotation to physical space of original scan (e.g., T2-weighted scan)
+
+    Parameters:
+    - image: scan, detection map or (softmax) prediction
+    - reference_scan_original: SimpleITK image to which the prediction should be resampled and resized
+    - reference_scan_preprocessed: SimpleITK image with physical metadata equal to `image`
+        (e.g., scan in nnUNet Raw Data Archive). Optional.
+
+    Returns:
+    - resampled image, in same physical space as reference_scan_original
     """
-    reference_scan_resampled = resample_img(reference_scan, out_spacing=out_spacing, is_label=False, pad_value=0)
+    # convert image to SimpleITK image and copy physical metadata
+    if not isinstance(image, sitk.Image):
+        image: sitk.Image = sitk.GetImageFromArray(image)
+        assert reference_scan_preprocessed is not None, "Need reference scan for phsyical metadata!"
 
-    # pad softmax prediction to physical size of resampled reference scan (with inverted order of image sizes)
-    pred = crop_or_pad(pred, size=list(reference_scan_resampled.GetSize())[::-1])
-    pred_itk = sitk.GetImageFromArray(pred)
+    if reference_scan_preprocessed is not None:
+        image.CopyInformation(reference_scan_preprocessed)
 
-    # set the physical properties of the predictions
-    pred_itk.CopyInformation(reference_scan_resampled)
+    # prepare resampling to original scan
+    resampler = sitk.ResampleImageFilter()  # default linear
+    resampler.SetReferenceImage(reference_scan_original)
+    resampler.SetInterpolator(interpolator)
 
-    # resample predictions to spacing of original reference scan
-    pred_itk_resampled = resample_img(pred_itk, out_spacing=reference_scan.GetSpacing(), is_label=is_label, pad_value=0)
-    return pred_itk_resampled
+    # resample image to original scan
+    image = resampler.Execute(image)
+
+    return image
