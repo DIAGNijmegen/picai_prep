@@ -1,0 +1,71 @@
+{
+    "task": "Task2201_picai_baseline",
+    "description": "bpMRI scans from PI-CAI dataset to train nnUNet baseline",
+    "tensorImageSize": "4D",
+    "reference": "",
+    "licence": "",
+    "release": "1.0",
+    "modality": {
+        "0": "T2W",
+        "1": "CT",
+        "2": "HBV"
+    },
+    "labels": {
+        "0": "background",
+        "1": "lesion"
+    },
+    "name": "picai_baseline",
+    "numTraining": 12,
+    "numTest": 0,
+    "training": [
+        {
+            "image": "./imagesTr/10032_1000032.nii.gz",
+            "label": "./labelsTr/10032_1000032.nii.gz"
+        },
+        {
+            "image": "./imagesTr/10059_1000059.nii.gz",
+            "label": "./labelsTr/10059_1000059.nii.gz"
+        },
+        {
+            "image": "./imagesTr/10294_1000300.nii.gz",
+            "label": "./labelsTr/10294_1000300.nii.gz"
+        },
+        {
+            "image": "./imagesTr/10699_1000715.nii.gz",
+            "label": "./labelsTr/10699_1000715.nii.gz"
+        },
+        {
+            "image": "./imagesTr/10730_1000746.nii.gz",
+            "label": "./labelsTr/10730_1000746.nii.gz"
+        },
+        {
+            "image": "./imagesTr/10868_1000884.nii.gz",
+            "label": "./labelsTr/10868_1000884.nii.gz"
+        },
+        {
+            "image": "./imagesTr/10872_1000888.nii.gz",
+            "label": "./labelsTr/10872_1000888.nii.gz"
+        },
+        {
+            "image": "./imagesTr/10921_1000938.nii.gz",
+            "label": "./labelsTr/10921_1000938.nii.gz"
+        },
+        {
+            "image": "./imagesTr/10961_1000980.nii.gz",
+            "label": "./labelsTr/10961_1000980.nii.gz"
+        },
+        {
+            "image": "./imagesTr/11032_1001052.nii.gz",
+            "label": "./labelsTr/11032_1001052.nii.gz"
+        },
+        {
+            "image": "./imagesTr/11137_1001160.nii.gz",
+            "label": "./labelsTr/11137_1001160.nii.gz"
+        },
+        {
+            "image": "./imagesTr/11198_1001221.nii.gz",
+            "label": "./labelsTr/11198_1001221.nii.gz"
+        }
+    ],
+    "test": []
+}

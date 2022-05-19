@@ -1,0 +1,142 @@
+{
+    "dataset_json": {
+        "task": "Task2201_picai_baseline",
+        "description": "bpMRI scans from PI-CAI dataset to train nnUNet baseline",
+        "tensorImageSize": "4D",
+        "reference": "",
+        "licence": "",
+        "release": "1.0",
+        "modality": {
+            "0": "T2W",
+            "1": "CT",
+            "2": "HBV"
+        },
+        "labels": {
+            "0": "background",
+            "1": "lesion"
+        }
+    },
+    "preprocessing": {},
+    "archive": [
+        {
+            "patient_id": "10032",
+            "study_id": "1000032",
+            "scan_paths": [
+                "10032/10032_1000032_t2w.mha",
+                "10032/10032_1000032_adc.mha",
+                "10032/10032_1000032_hbv.mha"
+            ],
+            "annotation_path": "10032_1000032.nii.gz"
+        },
+        {
+            "patient_id": "10059",
+            "study_id": "1000059",
+            "scan_paths": [
+                "10059/10059_1000059_t2w.mha",
+                "10059/10059_1000059_adc.mha",
+                "10059/10059_1000059_hbv.mha"
+            ],
+            "annotation_path": "10059_1000059.nii.gz"
+        },
+        {
+            "patient_id": "10294",
+            "study_id": "1000300",
+            "scan_paths": [
+                "10294/10294_1000300_t2w.mha",
+                "10294/10294_1000300_adc.mha",
+                "10294/10294_1000300_hbv.mha"
+            ],
+            "annotation_path": "10294_1000300.nii.gz"
+        },
+        {
+            "patient_id": "10699",
+            "study_id": "1000715",
+            "scan_paths": [
+                "10699/10699_1000715_t2w.mha",
+                "10699/10699_1000715_adc.mha",
+                "10699/10699_1000715_hbv.mha"
+            ],
+            "annotation_path": "10699_1000715.nii.gz"
+        },
+        {
+            "patient_id": "10730",
+            "study_id": "1000746",
+            "scan_paths": [
+                "10730/10730_1000746_t2w.mha",
+                "10730/10730_1000746_adc.mha",
+                "10730/10730_1000746_hbv.mha"
+            ],
+            "annotation_path": "10730_1000746.nii.gz"
+        },
+        {
+            "patient_id": "10868",
+            "study_id": "1000884",
+            "scan_paths": [
+                "10868/10868_1000884_t2w.mha",
+                "10868/10868_1000884_adc.mha",
+                "10868/10868_1000884_hbv.mha"
+            ],
+            "annotation_path": "10868_1000884.nii.gz"
+        },
+        {
+            "patient_id": "10872",
+            "study_id": "1000888",
+            "scan_paths": [
+                "10872/10872_1000888_t2w.mha",
+                "10872/10872_1000888_adc.mha",
+                "10872/10872_1000888_hbv.mha"
+            ],
+            "annotation_path": "10872_1000888.nii.gz"
+        },
+        {
+            "patient_id": "10921",
+            "study_id": "1000938",
+            "scan_paths": [
+                "10921/10921_1000938_t2w.mha",
+                "10921/10921_1000938_adc.mha",
+                "10921/10921_1000938_hbv.mha"
+            ],
+            "annotation_path": "10921_1000938.nii.gz"
+        },
+        {
+            "patient_id": "10961",
+            "study_id": "1000980",
+            "scan_paths": [
+                "10961/10961_1000980_t2w.mha",
+                "10961/10961_1000980_adc.mha",
+                "10961/10961_1000980_hbv.mha"
+            ],
+            "annotation_path": "10961_1000980.nii.gz"
+        },
+        {
+            "patient_id": "11032",
+            "study_id": "1001052",
+            "scan_paths": [
+                "11032/11032_1001052_t2w.mha",
+                "11032/11032_1001052_adc.mha",
+                "11032/11032_1001052_hbv.mha"
+            ],
+            "annotation_path": "11032_1001052.nii.gz"
+        },
+        {
+            "patient_id": "11137",
+            "study_id": "1001160",
+            "scan_paths": [
+                "11137/11137_1001160_t2w.mha",
+                "11137/11137_1001160_adc.mha",
+                "11137/11137_1001160_hbv.mha"
+            ],
+            "annotation_path": "11137_1001160.nii.gz"
+        },
+        {
+            "patient_id": "11198",
+            "study_id": "1001221",
+            "scan_paths": [
+                "11198/11198_1001221_t2w.mha",
+                "11198/11198_1001221_adc.mha",
+                "11198/11198_1001221_hbv.mha"
+            ],
+            "annotation_path": "11198_1001221.nii.gz"
+        }
+    ]
+}
