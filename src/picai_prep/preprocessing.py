@@ -162,9 +162,9 @@ def crop_or_pad(
 @dataclass
 class Sample:
     scans: List[sitk.Image]
-    lbl: Optional[sitk.Image]
-    name: Optional[str]
-    settings: PreprocessingSettings
+    lbl: Optional[sitk.Image] = None
+    name: Optional[str] = None
+    settings: PreprocessingSettings = None
     lbl_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
     lbl_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
     scan_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
@@ -177,6 +177,9 @@ class Sample:
             lbl = sitk.GetArrayFromImage(self.lbl)
             _, num_gt_lesions = ndimage.label(lbl, structure=np.ones((3, 3, 3)))
             self.num_gt_lesions = num_gt_lesions
+
+        if self.settings is None:
+            self.settings = PreprocessingSettings()
 
     def resample_to_first_scan(self):
         """Resample scans and label to the first scan"""
