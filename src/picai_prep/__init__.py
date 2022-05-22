@@ -17,7 +17,6 @@ from picai_prep.dcm2mha import Dicom2MHAConverter
 from picai_prep.mha2nnunet import MHA2nnUNetConverter
 from picai_prep.nnunet2nndet import nnunet2nndet
 
-
 print("If you have questions or suggestions, feel free to open an issue " +
       "at https://github.com/DIAGNijmegen/picai_prep\n")
 

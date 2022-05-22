@@ -13,15 +13,15 @@
 #  limitations under the License.
 
 
-import os
-import logging
 import datetime
-from typing import Dict, Optional
+import logging
+import os
 from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import Dict, Optional
 
-from picai_prep.utilities import plural
 from picai_prep.data_utils import PathLike
+from picai_prep.utilities import plural
 
 
 class ArchiveConverter(ABC):

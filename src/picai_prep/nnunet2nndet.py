@@ -13,17 +13,19 @@
 #  limitations under the License.
 
 
-import os
 import json
-import numpy as np
-from tqdm import tqdm
-from scipy import ndimage
-import SimpleITK as sitk
+import os
+import traceback
 from pathlib import Path
 from typing import Dict
-import traceback
 
-from picai_prep.data_utils import atomic_image_write, atomic_file_copy, PathLike
+import numpy as np
+import SimpleITK as sitk
+from scipy import ndimage
+from tqdm import tqdm
+
+from picai_prep.data_utils import (PathLike, atomic_file_copy,
+                                   atomic_image_write)
 
 
 def convert_and_save_label(

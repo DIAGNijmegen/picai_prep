@@ -13,16 +13,16 @@
 #  limitations under the License.
 
 
+import json
 import os
 import shutil
-import json
-from numpy.testing import assert_allclose
 from pathlib import Path
-import SimpleITK as sitk
 from typing import Optional
 
-from picai_prep.nnunet2nndet import nnunet2nndet
+import SimpleITK as sitk
+from numpy.testing import assert_allclose
 from picai_prep.data_utils import PathLike
+from picai_prep.nnunet2nndet import nnunet2nndet
 
 
 def test_nnunet2nndet(

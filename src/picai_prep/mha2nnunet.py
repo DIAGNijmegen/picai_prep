@@ -13,19 +13,20 @@
 #  limitations under the License.
 
 
-import os
+import dataclasses
 import json
+import os
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
 import jsonschema
 import SimpleITK as sitk
-from pathlib import Path
-from typing import List, Optional, Any, Dict, Tuple, Callable
-import dataclasses
-from dataclasses import dataclass
 
 from picai_prep.archive import ArchiveConverter
-from picai_prep.data_utils import atomic_image_write, PathLike
-from picai_prep.preprocessing import Sample, PreprocessingSettings
-from picai_prep.utilities import plural, mha2nnunet_schema
+from picai_prep.data_utils import PathLike, atomic_image_write
+from picai_prep.preprocessing import PreprocessingSettings, Sample
+from picai_prep.utilities import mha2nnunet_schema, plural
 
 
 @dataclass

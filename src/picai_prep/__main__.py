@@ -14,10 +14,12 @@
 
 
 import argparse
+
 from picai_prep import Dicom2MHAConverter, MHA2nnUNetConverter, nnunet2nndet
-from picai_prep.examples.mha2nnunet import (
-    picai_archive, picai_archive_inference, sample_archive, sample_archive_inference
-)
+from picai_prep.examples.mha2nnunet import (picai_archive,
+                                            picai_archive_inference,
+                                            sample_archive,
+                                            sample_archive_inference)
 
 # Set up command line arguments
 parser = argparse.ArgumentParser()

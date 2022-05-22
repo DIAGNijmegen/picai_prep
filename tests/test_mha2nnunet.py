@@ -13,18 +13,18 @@
 #  limitations under the License.
 
 
-import os
 import json
+import os
 import shutil
 from pathlib import Path
-from numpy.testing import assert_allclose
-import SimpleITK as sitk
-from typing import Optional, List
-import pytest
+from typing import List, Optional
 
+import pytest
+import SimpleITK as sitk
+from numpy.testing import assert_allclose
 from picai_prep.data_utils import PathLike
-from picai_prep.mha2nnunet import MHA2nnUNetConverter
 from picai_prep.examples.mha2nnunet import picai_archive
+from picai_prep.mha2nnunet import MHA2nnUNetConverter
 from picai_prep.preprocessing import resample_to_reference_scan
 
 

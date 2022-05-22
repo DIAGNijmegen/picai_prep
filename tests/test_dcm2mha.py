@@ -15,9 +15,9 @@
 
 import os
 import shutil
+
 import SimpleITK as sitk
 from numpy.testing import assert_allclose
-
 from picai_prep.dcm2mha import Dicom2MHAConverter
 
 

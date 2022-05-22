@@ -15,10 +15,13 @@
 
 import json
 
-from picai_prep.examples.dcm2mha.sample_archive import generate_dcm2mha_settings
-from picai_prep.examples.mha2nnunet.sample_archive import generate_mha2nnunet_settings
-from picai_prep.examples.mha2nnunet.sample_archive_inference import generate_mha2nnunet_settings as generate_mha2nnunet_inference_settings
 from picai_prep.data_utils import PathLike
+from picai_prep.examples.dcm2mha.sample_archive import \
+    generate_dcm2mha_settings
+from picai_prep.examples.mha2nnunet.sample_archive import \
+    generate_mha2nnunet_settings
+from picai_prep.examples.mha2nnunet.sample_archive_inference import \
+    generate_mha2nnunet_settings as generate_mha2nnunet_inference_settings
 
 
 def test_archive_json(

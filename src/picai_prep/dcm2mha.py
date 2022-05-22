@@ -13,18 +13,20 @@
 #  limitations under the License.
 
 
-import os
 import json
-import numpy as np
-from tqdm import tqdm
+import os
+
 import jsonschema
+import numpy as np
 import pydicom.errors
 import SimpleITK as sitk
+from tqdm import tqdm
 
-from picai_prep.data_utils import atomic_image_write
 from picai_prep.archive import ArchiveConverter
-from picai_prep.data_utils import PathLike
-from picai_prep.utilities import lower_strip, plural, get_pydicom_value, metadata_dict, metadata_defaults, dcm2mha_schema
+from picai_prep.data_utils import PathLike, atomic_image_write
+from picai_prep.utilities import (dcm2mha_schema, get_pydicom_value,
+                                  lower_strip, metadata_defaults,
+                                  metadata_dict, plural)
 
 isr = sitk.ImageSeriesReader()
 isr.LoadPrivateTagsOn()

@@ -15,9 +15,9 @@
 
 import json
 import os
-from tqdm import tqdm
 
 from picai_prep.data_utils import PathLike
+from tqdm import tqdm
 
 
 def generate_mha2nnunet_settings(

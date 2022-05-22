@@ -13,13 +13,14 @@
 #  limitations under the License.
 
 
-import SimpleITK as sitk
-import numpy as np
-from numpy.testing import assert_allclose
 from dataclasses import dataclass
+from typing import Any, Callable, Iterable, List, Optional, Union
+
+import numpy as np
+import SimpleITK as sitk
+from numpy.testing import assert_allclose
 from scipy import ndimage
 
-from typing import List, Callable, Optional, Union, Any, Iterable
 try:
     import numpy.typing as npt
 except ImportError:  # pragma: no cover

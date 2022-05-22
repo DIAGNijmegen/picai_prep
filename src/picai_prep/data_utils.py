@@ -15,9 +15,10 @@
 
 import os
 import shutil
-import SimpleITK as sitk
 from pathlib import Path
 from typing import Union
+
+import SimpleITK as sitk
 
 PathLike = Union[str, Path]
 
