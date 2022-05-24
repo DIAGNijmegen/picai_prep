@@ -258,8 +258,8 @@ class Dicom2MHAConverter(ArchiveConverter):
         # if target is still None, it is selected. otherwise, the reason for deselection is stated
         self.info(f"Selected {plural(target_count, 'target')}, removed {remove_c} by tiebreaker.", self.get_history_report())
 
-    def convert(self):
-        for step in [self._extract_metadata, self._apply_mappings, self._resolve_duplicates]:
+    def convert(self, resolve_duplicates: bool = True):
+        for step in [self._extract_metadata, self._apply_mappings] + [self._resolve_duplicates] if resolve_duplicates else []:
             if self.has_valid_items:
                 step()
                 self.next_history()
