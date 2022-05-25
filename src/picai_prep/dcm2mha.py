@@ -39,7 +39,6 @@ class Dicom2MHAConverter(ArchiveConverter):
         settings_path: PathLike,
         verify_dicom_filenames: bool = True,
         scan_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None,
-        cache_items_path: Union[bool, PathLike] = False,
         num_threads: int = 4,
         silent=False
     ):
@@ -303,7 +302,6 @@ class Dicom2MHAConverter(ArchiveConverter):
         return True
 
     def convert(self):
-        self.load_cached_items()
         for step in [self._extract_metadata, self._apply_mappings, self._resolve_duplicates]:
             if self.has_valid_items:
                 step()
