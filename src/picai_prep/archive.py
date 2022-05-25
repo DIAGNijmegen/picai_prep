@@ -25,7 +25,13 @@ from picai_prep.utilities import plural
 
 
 class ArchiveConverter(ABC):
-    def __init__(self, input_path: PathLike, output_path: PathLike, silent=False):
+    def __init__(
+        self,
+        input_path: PathLike,
+        output_path: PathLike,
+        num_threads: int = 4,
+        silent=False
+    ):
         super().__init__()
         self.items = []
         self._history = None
@@ -33,6 +39,7 @@ class ArchiveConverter(ABC):
         self.input_dir = Path(os.path.abspath(input_path))
         self.output_dir = Path(os.path.abspath(output_path))
         self.output_dir.mkdir(exist_ok=True, parents=True)
+        self.num_threads = num_threads
         self.silent = silent
         self._start_time = datetime.datetime.now()
 

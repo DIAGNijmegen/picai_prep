@@ -15,6 +15,7 @@
 
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import jsonschema
 import numpy as np
@@ -25,17 +26,19 @@ from tqdm import tqdm
 from picai_prep.archive import ArchiveConverter
 from picai_prep.data_utils import PathLike, atomic_image_write
 from picai_prep.utilities import (dcm2mha_schema, get_pydicom_value,
-                                  lower_strip, metadata_defaults,
-                                  metadata_dict, plural)
-
-isr = sitk.ImageSeriesReader()
-isr.LoadPrivateTagsOn()
-ifr = sitk.ImageFileReader()
-ifr.LoadPrivateTagsOn()
+                                  lower_strip, make_sitk_readers,
+                                  metadata_defaults, metadata_dict, plural)
 
 
 class Dicom2MHAConverter(ArchiveConverter):
-    def __init__(self, input_path: PathLike, output_path: PathLike, settings_path: PathLike, silent=False):
+    def __init__(
+        self,
+        input_path: PathLike,
+        output_path: PathLike,
+        settings_path: PathLike,
+        num_threads: int = 4,
+        silent=False
+    ):
         """
         Converts DICOM files into MHA files with respect to a given mapping
 
@@ -48,6 +51,7 @@ class Dicom2MHAConverter(ArchiveConverter):
         super().__init__(
             input_path=input_path,
             output_path=output_path,
+            num_threads=num_threads,
             silent=silent
         )
 
@@ -100,6 +104,72 @@ class Dicom2MHAConverter(ArchiveConverter):
         self.info("Provided dcm2mha archive is valid.", self.get_history_report())  # report number of valid items after adding errors
         self.next_history()  # next history
 
+    def _extract_metadata_function(self, item):
+        ifr, isr = make_sitk_readers()
+        dcms = [os.path.basename(dcm) for dcm in isr.GetGDCMSeriesFileNames(item['source'])]
+
+        # verify DICOMS go from a to z
+        if len(dcms) == 0:
+            item['error'] = 'No DICOM data found'
+            self.item_log(item, 'missing DICOM data')
+            return
+
+        vdcms = [d.rsplit('.', 1)[0] for d in dcms]
+        vdcms = [int(''.join(c for c in d if c.isdigit())) for d in vdcms]
+        missing_slices = False
+        for num in range(min(vdcms), max(vdcms) + 1):
+            if num not in vdcms:
+                missing_slices = True
+        if missing_slices:
+            item['error'] = 'Missing DICOM slices detected'
+            self.item_log(item, 'missing DICOM slices')
+            return
+
+        dcm = os.path.join(item['source'], dcms[-1])
+        metadata = dict()
+
+        try:
+            # extract metadata
+            ifr.SetFileName(dcm)
+            ifr.Execute()
+            item['resolution'] = np.prod(ifr.GetSpacing())
+            for key in self.metadata:
+                metadata[key] = lower_strip(ifr.GetMetaData(key)) if ifr.HasMetaDataKey(key) else None
+
+            # extract PatientID and StudyInstanceUID if not set
+            for id, value in metadata_defaults.items():
+                if item[id] is None:
+                    if ifr.HasMetaDataKey(value['key']):
+                        item[id] = lower_strip(ifr.GetMetaData(value['key']))
+                    else:
+                        item['error'] = value['error']
+                        self.item_log(item, 'metadata key error')
+                        continue
+        except Exception:
+            try:
+                with pydicom.dcmread(dcm) as d:
+                    # extract metadata
+                    item['resolution'] = np.prod(d.PixelSpacing)
+                    for key in self.metadata:
+                        metadata[key] = lower_strip(get_pydicom_value(d, key))
+
+                    # extract PatientID and StudyInstanceUID if not set
+                    for id, value in metadata_defaults.items():
+                        if item[id] is None:
+                            item[id] = lower_strip(get_pydicom_value(d, value['key']))
+                            if item[id] is None:
+                                item['error'] = value['error']
+                                self.item_log(item, 'metadata key error')
+                                continue
+
+            except pydicom.errors.InvalidDicomError:
+                item['error'] = 'Could not open using either SimpleITK or pydicom'
+                self.item_log(item, 'corrupted DICOM file')
+                return
+
+        item['metadata'] = metadata
+        item['dcms'] = dcms
+
     def _extract_metadata(self):
         """
         Collect all dicom files in each item
@@ -107,71 +177,17 @@ class Dicom2MHAConverter(ArchiveConverter):
         self.info(f"Extracting metadata from {self.valid_items_str()}.")
 
         total = 0
-        for item in tqdm(self.valid_items):
-            dcms = [os.path.basename(dcm) for dcm in isr.GetGDCMSeriesFileNames(item['source'])]
-
-            # verify DICOMS go from a to z
-            if len(dcms) == 0:
-                item['error'] = 'No DICOM data found'
-                self.item_log(item, 'missing DICOM data')
-                continue
-
-            vdcms = [d.rsplit('.', 1)[0] for d in dcms]
-            vdcms = [int(''.join(c for c in d if c.isdigit())) for d in vdcms]
-            missing_slices = False
-            for num in range(min(vdcms), max(vdcms) + 1):
-                if num not in vdcms:
-                    missing_slices = True
-            if missing_slices:
-                item['error'] = 'Missing DICOM slices detected'
-                self.item_log(item, 'missing DICOM slices')
-                continue
-
-            dcm = os.path.join(item['source'], dcms[-1])
-            metadata = dict()
-
-            try:
-                # extract metadata
-                ifr.SetFileName(dcm)
-                ifr.Execute()
-                item['resolution'] = np.prod(ifr.GetSpacing())
-                for key in self.metadata:
-                    metadata[key] = lower_strip(ifr.GetMetaData(key)) if ifr.HasMetaDataKey(key) else None
-
-                # extract PatientID and StudyInstanceUID if not set
-                for id, value in metadata_defaults.items():
-                    if item[id] is None:
-                        if ifr.HasMetaDataKey(value['key']):
-                            item[id] = lower_strip(ifr.GetMetaData(value['key']))
-                        else:
-                            item['error'] = value['error']
-                            self.item_log(item, 'metadata key error')
-                            continue
-            except Exception:
+        with ThreadPoolExecutor(max_workers=self.num_threads) as pool:
+            futures = {pool.submit(self._extract_metadata_function, item): item for item in self.valid_items}
+            for future in tqdm(as_completed(futures), total=self.num_valid_items):
+                item = futures[future]
                 try:
-                    with pydicom.dcmread(dcm) as d:
-                        # extract metadata
-                        item['resolution'] = np.prod(d.PixelSpacing)
-                        for key in self.metadata:
-                            metadata[key] = lower_strip(get_pydicom_value(d, key))
-
-                        # extract PatientID and StudyInstanceUID if not set
-                        for id, value in metadata_defaults.items():
-                            if item[id] is None:
-                                item[id] = lower_strip(get_pydicom_value(d, value['key']))
-                                if item[id] is None:
-                                    item['error'] = value['error']
-                                    self.item_log(item, 'metadata key error')
-                                    continue
-
-                except pydicom.errors.InvalidDicomError:
-                    item['error'] = 'Could not open using either SimpleITK or pydicom'
-                    self.item_log(item, 'corrupted DICOM file')
-                    continue
-
-            total += len(dcms)
-            item['metadata'] = metadata
-            item['dcms'] = dcms
+                    future.result()
+                except Exception as e:
+                    item['error'] = f'Unexpected error: {e}'
+                    self.item_log(item, 'unexpected error')
+                else:
+                    total += len(item['dcms'])
 
         self.info(f"Collected {plural(total, 'DICOM file')} from {self.valid_items_str()}.", self.get_history_report())
 
@@ -258,6 +274,24 @@ class Dicom2MHAConverter(ArchiveConverter):
         # if target is still None, it is selected. otherwise, the reason for deselection is stated
         self.info(f"Selected {plural(target_count, 'target')}, removed {remove_c} by tiebreaker.", self.get_history_report())
 
+    def _convert_function(self, args) -> bool:
+        item, target, destination = args
+        # the series is already verified in an earlier step
+        try:
+            volume = image_series_to_volume(item['source'])
+        except Exception:
+            item['targets'][target] = 'Conversion to volume failed, likely corrupt data'
+            self.item_log(item, 'corrupt data')
+            return False
+
+        try:
+            atomic_image_write(image=volume, path=destination, mkdir=True)
+        except Exception as e:
+            item['targets'][target] = f'Error during writing: {e}'
+            self.item_log(item, 'write error')
+            return False
+        return True
+
     def convert(self):
         for step in [self._extract_metadata, self._apply_mappings, self._resolve_duplicates]:
             if self.has_valid_items:
@@ -275,9 +309,9 @@ class Dicom2MHAConverter(ArchiveConverter):
         self.info(f"Converting {convert_count} DICOM series to MHA.")
 
         # convert all items with valid targets to mha
-        success_count = 0
-        skip_count = 0
-        for item in tqdm(self.valid_items):
+        success_count, skip_count = 0, 0
+        targets = []
+        for item in self.valid_items:
             for target, status in item['targets'].items():
                 if status is None:  # therefore selected
                     destination = os.path.join(self.output_dir, item['patient_id'], target + '.mha')
@@ -285,24 +319,20 @@ class Dicom2MHAConverter(ArchiveConverter):
                         item['targets'][target] = 'Skipped, target output path already exists'
                         self.item_log(item, 'skipped')
                         skip_count += 1
-                        continue
+                    else:
+                        targets.append((item, target, destination))
 
-                    # the series is already verified in an earlier step
-                    try:
-                        volume = image_series_to_volume(item['source'])
-                    except Exception:
-                        item['targets'][target] = 'Conversion to volume failed, likely corrupt data'
-                        self.item_log(item, 'corrupt data')
-                        continue
-
-                    try:
-                        atomic_image_write(image=volume, path=destination, mkdir=True)
-                    except Exception as e:
-                        item['targets'][target] = str(e)
-                        self.item_log(item, 'unknown error')
-                        continue
-
-                    success_count += 1
+        with ThreadPoolExecutor(max_workers=self.num_threads) as pool:
+            futures = {pool.submit(self._convert_function, args): args for args in targets}
+            for future in tqdm(as_completed(futures), total=len(targets)):
+                item, target, _ = futures[future]
+                try:
+                    success = future.result()
+                except Exception as e:
+                    item['targets'][target] = f'Unexpected error: {e}'
+                    self.item_log(item, 'unexpected error')
+                else:
+                    success_count += 1 if success else 0
 
         self.info(f"{success_count} converted successfully.", self.get_history_report())
         self.complete()
@@ -325,6 +355,7 @@ class Dicom2MHAConverter(ArchiveConverter):
 
 
 def image_series_to_volume(image_series_path):
+    ifr, isr = make_sitk_readers()
     dcms = isr.GetGDCMSeriesFileNames(image_series_path)
 
     try:

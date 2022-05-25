@@ -13,7 +13,10 @@
 #  limitations under the License.
 
 
+from typing import Tuple
+
 import pydicom
+import SimpleITK as sitk
 
 from picai_prep.resources.dcm2mha_schema import dcm2mha_schema
 from picai_prep.resources.metadata import metadata_dict
@@ -34,6 +37,14 @@ def get_pydicom_value(data: pydicom.dataset.FileDataset, key: str):
         result = data[key]
         return result.value if not result.is_empty else None
     return None
+
+
+def make_sitk_readers() -> Tuple[sitk.ImageFileReader, sitk.ImageSeriesReader]:
+    isr = sitk.ImageSeriesReader()
+    isr.LoadPrivateTagsOn()
+    ifr = sitk.ImageFileReader()
+    ifr.LoadPrivateTagsOn()
+    return ifr, isr
 
 
 metadata_defaults = {
