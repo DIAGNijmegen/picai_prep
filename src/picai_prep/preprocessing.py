@@ -31,9 +31,9 @@ except ImportError:  # pragma: no cover
 class PreprocessingSettings():
     """
     Preprocessing settings
-    - matrix_size: number of voxels output volume (z, y, x)
+    - matrix_size: number of voxels output image (z, y, x)
     - spacing: output voxel spacing in mm (z, y, x)
-    - physical_size: size in mm/voxel of the target volume (z, y, x)
+    - physical_size: size in mm/voxel of the target image (z, y, x)
     - align_segmentation: whether to align the scans using the centroid of the provided segmentation
     """
     matrix_size: Optional[Iterable[int]] = None

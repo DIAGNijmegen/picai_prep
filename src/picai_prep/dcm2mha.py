@@ -38,7 +38,6 @@ class Dicom2MHAConverter(ArchiveConverter):
         output_path: PathLike,
         settings_path: PathLike,
         verify_dicom_filenames: bool = True,
-        scan_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None,
         scan_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None,
         cache_items_path: Union[bool, PathLike] = False,
         num_threads: int = 4,
@@ -62,8 +61,7 @@ class Dicom2MHAConverter(ArchiveConverter):
 
         # store parameters
         self.verify_dicom_filenames = verify_dicom_filenames
-        scan_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
-        scan_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
+        self.scan_postprocess_func = scan_postprocess_func
 
         # read and verify conversion settings
         with open(settings_path) as fp:
@@ -289,14 +287,15 @@ class Dicom2MHAConverter(ArchiveConverter):
         item, target, destination = args
         # the series is already verified in an earlier step
         try:
-            volume = read_image_series(item['source'])
-        except Exception:
-            item['targets'][target] = 'Conversion to volume failed, likely corrupt data'
+            image = read_image_series(item['source'])
+            image = self.scan_postprocess_func(image)
+        except Exception as e:
+            item['targets'][target] = f'Reading DICOM sequence failed, maybe corrupt data? Error: {e}'
             self.item_log(item, 'corrupt data')
             return False
 
         try:
-            atomic_image_write(image=volume, path=destination, mkdir=True)
+            atomic_image_write(image=image, path=destination, mkdir=True)
         except Exception as e:
             item['targets'][target] = f'Error during writing: {e}'
             self.item_log(item, 'write error')
