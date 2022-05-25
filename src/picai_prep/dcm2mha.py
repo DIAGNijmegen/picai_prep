@@ -199,21 +199,22 @@ class Dicom2MHAConverter(ArchiveConverter):
 
         self.info(f"Collected {plural(total, 'DICOM file')} from {self.valid_items_str()}.", self.get_history_report())
 
+    @staticmethod
+    def maps_to(mapping, metadata):
+        """metadata maps to 'mapping' if any value in each key match"""
+        for key, values in mapping.items():
+            if not any(v in metadata[key] for v in values):
+                return False
+        return True
+
     def _apply_mappings(self):
         self.info(f"Applying mappings to {self.valid_items_str()} using extracted metadata.")
-
-        # metadata maps to 'mapping' if any value in each key match
-        def maps_to(mapping, metadata):
-            for key, values in mapping.items():
-                if not any(v in metadata[key] for v in values):
-                    return False
-            return True
 
         total = 0
         for item in self.valid_items:
             item['mappings'] = []
             for name, mapping in self.mappings.items():
-                if maps_to(mapping, item['metadata']):
+                if self.maps_to(mapping, item['metadata']):
                     item['mappings'].append(name)
                     total += 1
 
