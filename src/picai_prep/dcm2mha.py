@@ -116,8 +116,8 @@ class Dicom2MHAConverter(ArchiveConverter):
 
         # verify DICOM files were found
         if len(dicom_filenames) == 0:
-            item['error'] = 'No DICOM data found'
-            self.item_log(item, 'missing DICOM data')
+            item['error'] = f"No DICOM data found at {item['source']}"
+            self.item_log(item, "missing DICOM data")
             return
 
         if self.verify_dicom_filenames:
@@ -129,8 +129,8 @@ class Dicom2MHAConverter(ArchiveConverter):
                 if num not in vdcms:
                     missing_slices = True
             if missing_slices:
-                item['error'] = 'Missing DICOM slices detected'
-                self.item_log(item, 'missing DICOM slices')
+                item['error'] = f"Missing DICOM slices detected in {item['source']}"
+                self.item_log(item, "missing DICOM slices")
                 return
 
         dicom_slice_path = os.path.join(item['source'], dicom_filenames[-1])
@@ -195,7 +195,7 @@ class Dicom2MHAConverter(ArchiveConverter):
                     item['error'] = f'Unexpected error: {e}'
                     self.item_log(item, 'unexpected error')
                 else:
-                    total += len(item['dcms'])
+                    total += (len(item['dcms']) if 'dcms' in item else 0)
 
         self.info(f"Collected {plural(total, 'DICOM file')} from {self.valid_items_str()}.", self.get_history_report())
 
