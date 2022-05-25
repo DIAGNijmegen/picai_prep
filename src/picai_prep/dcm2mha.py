@@ -112,17 +112,17 @@ class Dicom2MHAConverter(ArchiveConverter):
 
     def _extract_metadata_function(self, item):
         file_reader, series_reader = make_sitk_readers()
-        dcms = [os.path.basename(dcm) for dcm in series_reader.GetGDCMSeriesFileNames(item['source'])]
+        dicom_filenames = [os.path.basename(dcm) for dcm in series_reader.GetGDCMSeriesFileNames(item['source'])]
 
         # verify DICOM files were found
-        if len(dcms) == 0:
+        if len(dicom_filenames) == 0:
             item['error'] = 'No DICOM data found'
             self.item_log(item, 'missing DICOM data')
             return
 
         if self.verify_dicom_filenames:
             # verify DICOM filenames have slice numbers that go from a to z
-            vdcms = [d.rsplit('.', 1)[0] for d in dcms]
+            vdcms = [d.rsplit('.', 1)[0] for d in dicom_filenames]
             vdcms = [int(''.join(c for c in d if c.isdigit())) for d in vdcms]
             missing_slices = False
             for num in range(min(vdcms), max(vdcms) + 1):
@@ -133,13 +133,13 @@ class Dicom2MHAConverter(ArchiveConverter):
                 self.item_log(item, 'missing DICOM slices')
                 return
 
-        dicom_slice_path = os.path.join(item['source'], dcms[-1])
+        dicom_slice_path = os.path.join(item['source'], dicom_filenames[-1])
         metadata = dict()
 
         try:
             # extract metadata
             file_reader.SetFileName(dicom_slice_path)
-            file_reader.Execute()
+            file_reader.ReadImageInformation()
             item['resolution'] = np.prod(file_reader.GetSpacing())
             for key in self.metadata:
                 metadata[key] = lower_strip(file_reader.GetMetaData(key)) if file_reader.HasMetaDataKey(key) else None
@@ -176,7 +176,7 @@ class Dicom2MHAConverter(ArchiveConverter):
                 return
 
         item['metadata'] = metadata
-        item['dcms'] = dcms
+        item['dcms'] = dicom_filenames
 
     def _extract_metadata(self):
         """
