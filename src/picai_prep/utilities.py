@@ -40,11 +40,14 @@ def get_pydicom_value(data: pydicom.dataset.FileDataset, key: str):
 
 
 def make_sitk_readers() -> Tuple[sitk.ImageFileReader, sitk.ImageSeriesReader]:
-    isr = sitk.ImageSeriesReader()
-    isr.LoadPrivateTagsOn()
-    ifr = sitk.ImageFileReader()
-    ifr.LoadPrivateTagsOn()
-    return ifr, isr
+    """Initialise SimpleITK series and file readers"""
+    series_reader = sitk.ImageSeriesReader()
+    file_reader = sitk.ImageFileReader()
+
+    for reader in (series_reader, file_reader):
+        reader.LoadPrivateTagsOn()
+
+    return file_reader, series_reader
 
 
 metadata_defaults = {
