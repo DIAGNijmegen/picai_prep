@@ -16,6 +16,7 @@
 import json
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Callable, Optional, Union
 
 import jsonschema
 import numpy as np
@@ -36,6 +37,10 @@ class Dicom2MHAConverter(ArchiveConverter):
         input_path: PathLike,
         output_path: PathLike,
         settings_path: PathLike,
+        verify_dicom_filenames: bool = True,
+        scan_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None,
+        scan_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None,
+        cache_items_path: Union[bool, PathLike] = False,
         num_threads: int = 4,
         silent=False
     ):
@@ -55,6 +60,11 @@ class Dicom2MHAConverter(ArchiveConverter):
             silent=silent
         )
 
+        # store parameters
+        self.verify_dicom_filenames = verify_dicom_filenames
+        scan_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
+        scan_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
+
         # read and verify conversion settings
         with open(settings_path) as fp:
             settings = json.load(fp)
@@ -62,7 +72,6 @@ class Dicom2MHAConverter(ArchiveConverter):
 
         # collect relevant metadata to extract (predefined StudyInstanceUID and PatientID)
         self.metadata = set()
-
         self.mappings = dict()
         for name, mapping in settings['mappings'].items():
             tech_mapping = dict()
@@ -105,49 +114,51 @@ class Dicom2MHAConverter(ArchiveConverter):
         self.next_history()  # next history
 
     def _extract_metadata_function(self, item):
-        ifr, isr = make_sitk_readers()
-        dcms = [os.path.basename(dcm) for dcm in isr.GetGDCMSeriesFileNames(item['source'])]
+        file_reader, series_reader = make_sitk_readers()
+        dcms = [os.path.basename(dcm) for dcm in series_reader.GetGDCMSeriesFileNames(item['source'])]
 
-        # verify DICOMS go from a to z
+        # verify DICOM files were found
         if len(dcms) == 0:
             item['error'] = 'No DICOM data found'
             self.item_log(item, 'missing DICOM data')
             return
 
-        vdcms = [d.rsplit('.', 1)[0] for d in dcms]
-        vdcms = [int(''.join(c for c in d if c.isdigit())) for d in vdcms]
-        missing_slices = False
-        for num in range(min(vdcms), max(vdcms) + 1):
-            if num not in vdcms:
-                missing_slices = True
-        if missing_slices:
-            item['error'] = 'Missing DICOM slices detected'
-            self.item_log(item, 'missing DICOM slices')
-            return
+        if self.verify_dicom_filenames:
+            # verify DICOM filenames have slice numbers that go from a to z
+            vdcms = [d.rsplit('.', 1)[0] for d in dcms]
+            vdcms = [int(''.join(c for c in d if c.isdigit())) for d in vdcms]
+            missing_slices = False
+            for num in range(min(vdcms), max(vdcms) + 1):
+                if num not in vdcms:
+                    missing_slices = True
+            if missing_slices:
+                item['error'] = 'Missing DICOM slices detected'
+                self.item_log(item, 'missing DICOM slices')
+                return
 
-        dcm = os.path.join(item['source'], dcms[-1])
+        dicom_slice_path = os.path.join(item['source'], dcms[-1])
         metadata = dict()
 
         try:
             # extract metadata
-            ifr.SetFileName(dcm)
-            ifr.Execute()
-            item['resolution'] = np.prod(ifr.GetSpacing())
+            file_reader.SetFileName(dicom_slice_path)
+            file_reader.Execute()
+            item['resolution'] = np.prod(file_reader.GetSpacing())
             for key in self.metadata:
-                metadata[key] = lower_strip(ifr.GetMetaData(key)) if ifr.HasMetaDataKey(key) else None
+                metadata[key] = lower_strip(file_reader.GetMetaData(key)) if file_reader.HasMetaDataKey(key) else None
 
             # extract PatientID and StudyInstanceUID if not set
             for id, value in metadata_defaults.items():
                 if item[id] is None:
-                    if ifr.HasMetaDataKey(value['key']):
-                        item[id] = lower_strip(ifr.GetMetaData(value['key']))
+                    if file_reader.HasMetaDataKey(value['key']):
+                        item[id] = lower_strip(file_reader.GetMetaData(value['key']))
                     else:
                         item['error'] = value['error']
                         self.item_log(item, 'metadata key error')
                         continue
         except Exception:
             try:
-                with pydicom.dcmread(dcm) as d:
+                with pydicom.dcmread(dicom_slice_path) as d:
                     # extract metadata
                     item['resolution'] = np.prod(d.PixelSpacing)
                     for key in self.metadata:
@@ -278,7 +289,7 @@ class Dicom2MHAConverter(ArchiveConverter):
         item, target, destination = args
         # the series is already verified in an earlier step
         try:
-            volume = image_series_to_volume(item['source'])
+            volume = read_image_series(item['source'])
         except Exception:
             item['targets'][target] = 'Conversion to volume failed, likely corrupt data'
             self.item_log(item, 'corrupt data')
@@ -293,6 +304,7 @@ class Dicom2MHAConverter(ArchiveConverter):
         return True
 
     def convert(self):
+        self.load_cached_items()
         for step in [self._extract_metadata, self._apply_mappings, self._resolve_duplicates]:
             if self.has_valid_items:
                 step()
@@ -354,38 +366,38 @@ class Dicom2MHAConverter(ArchiveConverter):
                f"\t{result}"
 
 
-def image_series_to_volume(image_series_path):
-    ifr, isr = make_sitk_readers()
-    dcms = isr.GetGDCMSeriesFileNames(image_series_path)
+def read_image_series(image_series_path):
+    file_reader, series_reader = make_sitk_readers()
+    dicom_slice_paths = series_reader.GetGDCMSeriesFileNames(image_series_path)
 
     try:
-        isr.SetFileNames(dcms)
-        volume = isr.Execute()
+        series_reader.SetFileNames(dicom_slice_paths)
+        image = series_reader.Execute()
 
-        ifr.SetFileName(dcms[-1])
-        specimen = ifr.Execute()
+        file_reader.SetFileName(dicom_slice_paths[-1])
+        dicom_slice = file_reader.Execute()
         for key in metadata_dict.values():
-            if specimen.HasMetaDataKey(key) and len(specimen.GetMetaData(key)) > 0:
-                volume.SetMetaData(key, specimen.GetMetaData(key))
-    except Exception:
-        files = [pydicom.dcmread(dcm) for dcm in dcms]
+            if dicom_slice.HasMetaDataKey(key) and len(dicom_slice.GetMetaData(key)) > 0:
+                image.SetMetaData(key, dicom_slice.GetMetaData(key))
+    except RuntimeError:
+        files = [pydicom.dcmread(dcm) for dcm in dicom_slice_paths]
 
         # skip files with no SliceLocation (eg. scout views)
         slices = filter(lambda a: hasattr(a, 'SliceLocation'), files)
         slices = sorted(slices, key=lambda s: s.SliceLocation)
 
         # create and fill 3D array
-        volume = np.zeros([len(slices)] + list(slices[0].pixel_array.shape))
+        image = np.zeros([len(slices)] + list(slices[0].pixel_array.shape))
         for i, s in enumerate(slices):
-            volume[i, :, :] = s.pixel_array
+            image[i, :, :] = s.pixel_array
 
         # convert to SimpleITK
-        volume = sitk.GetImageFromArray(volume)
-        volume.SetSpacing(list(slices[0].PixelSpacing) + [slices[0].SliceThickness])
+        image = sitk.GetImageFromArray(image)
+        image.SetSpacing(list(slices[0].PixelSpacing) + [slices[0].SliceThickness])
 
         for key in metadata_dict.values():
             value = get_pydicom_value(files[0], key)
             if value is not None:
-                volume.SetMetaData(key, value)
+                image.SetMetaData(key, value)
 
-    return volume
+    return image

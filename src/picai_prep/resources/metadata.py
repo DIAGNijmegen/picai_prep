@@ -47,6 +47,8 @@ metadata_dict = {
     "pixelspacing": "0028|0030",
     "protocolname": "0018|1030",
     "repetitiontime": "0018|0080",
+    "rescaleintercept": "0028|1052",
+    "rescaleslope": "0028|1053",
     "rows": "0028|0010",
     "samplesperpixel": "0028|0002",
     "scanningsequence": "0018|0020",
