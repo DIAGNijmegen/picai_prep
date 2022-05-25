@@ -16,7 +16,7 @@
 import json
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Callable, Optional, Union
+from typing import Callable, Optional
 
 import jsonschema
 import numpy as np
