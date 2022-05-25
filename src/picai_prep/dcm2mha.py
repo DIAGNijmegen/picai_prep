@@ -287,11 +287,13 @@ class Dicom2MHAConverter(ArchiveConverter):
         # the series is already verified in an earlier step
         try:
             image = read_image_series(item['source'])
-            image = self.scan_postprocess_func(image)
         except Exception as e:
             item['targets'][target] = f'Reading DICOM sequence failed, maybe corrupt data? Error: {e}'
             self.item_log(item, 'corrupt data')
             return False
+
+        if self.scan_postprocess_func is not None:
+            image = self.scan_postprocess_func(image)
 
         try:
             atomic_image_write(image=image, path=destination, mkdir=True)
