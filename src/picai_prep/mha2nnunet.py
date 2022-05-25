@@ -16,12 +16,14 @@
 import dataclasses
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import jsonschema
 import SimpleITK as sitk
+from tqdm import tqdm
 
 from picai_prep.archive import ArchiveConverter
 from picai_prep.data_utils import PathLike, atomic_image_write
@@ -109,6 +111,7 @@ class MHA2nnUNetConverter(ArchiveConverter):
         scan_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None,
         out_dir_scans: PathLike = "imagesTr",
         out_dir_annot: PathLike = "labelsTr",
+        num_threads: int = 4,
         silent: bool = False,
     ):
         """
@@ -124,6 +127,7 @@ class MHA2nnUNetConverter(ArchiveConverter):
         super().__init__(
             input_path=input_path,
             output_path=output_path,
+            num_threads=num_threads,
             silent=silent
         )
         if annotations_path is not None:
@@ -152,7 +156,7 @@ class MHA2nnUNetConverter(ArchiveConverter):
         self.info("Provided mha2nnunet archive is valid.", self.get_history_report())  # report number of items
         self.next_history()  # next history
 
-    def _gather(self):
+    def _plan(self):
         """
         Build full conversion plan
         """
@@ -186,6 +190,47 @@ class MHA2nnUNetConverter(ArchiveConverter):
                   f"{plural(total_scans, 'scan')} and {plural(total_lbl, 'label')}.",
                   self.get_history_report())
 
+    def _convert_item(self, item) -> bool:
+        conv_item = item['conversion_item']
+        if conv_item.skip:
+            # skip, already converted
+            return False
+
+        # read images
+        scans = []
+        for scan_properties in conv_item.all_scan_properties:
+            scans += [sitk.ReadImage(str(scan_properties['input_path']))]
+
+        # read label
+        lbl = None
+        if conv_item.label_properties:
+            lbl = sitk.ReadImage(str(conv_item.label_properties['input_path']))
+
+        # set up Sample
+        sample = Sample(
+            scans=scans,
+            lbl=lbl,
+            settings=self.preprocessing_settings,
+            lbl_preprocess_func=self.lbl_preprocess_func,
+            lbl_postprocess_func=self.lbl_postprocess_func,
+            scan_preprocess_func=self.scan_preprocess_func,
+            scan_postprocess_func=self.scan_postprocess_func,
+            name=conv_item.subject_id
+        )
+
+        # perform preprocessing
+        sample.preprocess()
+
+        # write images
+        for scan, scan_properties in zip(sample.scans, conv_item.all_scan_properties):
+            atomic_image_write(scan, path=scan_properties['output_path'], mkdir=True)
+
+        if sample.lbl:
+            atomic_image_write(sample.lbl, path=conv_item.label_properties['output_path'], mkdir=True)
+
+        return True
+
+
     def _write(self):
         """
         Preprocess studies for nnUNet
@@ -205,50 +250,24 @@ class MHA2nnUNetConverter(ArchiveConverter):
             'output_path': path to store preprocessed label,
         }
         """
+        successes, errors = 0, 0
 
-        skipped_cases = 0
-        total = self.num_valid_items
+        with ThreadPoolExecutor(max_workers=self.num_threads) as pool:
+            futures = {pool.submit(self._convert_item, item): item for item in self.valid_items}
+            for future in tqdm(as_completed(futures), total=self.num_valid_items):
+                item = futures[future]
+                try:
+                    success = future.result()
+                except Exception as e:
+                    item['error'] = f'Unexpected error: {e}'
+                    self.item_log(item, 'unexpected error')
+                    errors += 1
+                else:
+                    successes += 1 if success else 0
 
-        for item in self.valid_items:
-            conv_item = item['conversion_item']
-            if conv_item.skip:
-                # skip, already converted
-                skipped_cases += 1
-                continue
-
-            # read images
-            scans = []
-            for scan_properties in conv_item.all_scan_properties:
-                scans += [sitk.ReadImage(str(scan_properties['input_path']))]
-
-            # read label
-            lbl = None
-            if conv_item.label_properties:
-                lbl = sitk.ReadImage(str(conv_item.label_properties['input_path']))
-
-            # set up Sample
-            sample = Sample(
-                scans=scans,
-                lbl=lbl,
-                settings=self.preprocessing_settings,
-                lbl_preprocess_func=self.lbl_preprocess_func,
-                lbl_postprocess_func=self.lbl_postprocess_func,
-                scan_preprocess_func=self.scan_preprocess_func,
-                scan_postprocess_func=self.scan_postprocess_func,
-                name=conv_item.subject_id
-            )
-
-            # perform preprocessing
-            sample.preprocess()
-
-            # write images
-            for scan, scan_properties in zip(sample.scans, conv_item.all_scan_properties):
-                atomic_image_write(scan, path=scan_properties['output_path'], mkdir=True)
-
-            if sample.lbl:
-                atomic_image_write(sample.lbl, path=conv_item.label_properties['output_path'], mkdir=True)
-
-        self.info(f"Processed {plural(total, 'item')}, with {plural(skipped_cases, 'case')} skipped.")
+        skipped = self.num_valid_items - successes - errors
+        self.info(f"Processed {plural(self.num_valid_items, 'item')}, "
+                  f"with {plural(skipped, 'case')} skipped and {plural(errors, 'error')}.")
 
     def generate_json(self):
         """
@@ -283,7 +302,7 @@ class MHA2nnUNetConverter(ArchiveConverter):
         2. Preprocess and write scans
         3. Generate dataset.json
         """
-        for step in [self._gather, self._write]:
+        for step in [self._plan, self._write]:
             if self.has_valid_items:
                 step()
                 self.next_history()
