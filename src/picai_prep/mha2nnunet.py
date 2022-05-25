@@ -230,7 +230,6 @@ class MHA2nnUNetConverter(ArchiveConverter):
 
         return True
 
-
     def _write(self):
         """
         Preprocess studies for nnUNet
