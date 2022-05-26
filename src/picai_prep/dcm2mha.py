@@ -153,7 +153,8 @@ class Dicom2MHAConverter(ArchiveConverter):
                         item['error'] = value['error']
                         self.item_log(item, 'metadata key error')
                         continue
-        except Exception:
+        except Exception as e:
+            print(f"Reading with SimpleITK failed for {item['source']} with {e}. Trying with pydicom now.")
             try:
                 with pydicom.dcmread(dicom_slice_path) as d:
                     # extract metadata
@@ -304,15 +305,7 @@ class Dicom2MHAConverter(ArchiveConverter):
             return False
         return True
 
-    def convert(self):
-        for step in [self._extract_metadata, self._apply_mappings, self._resolve_duplicates]:
-            if self.has_valid_items:
-                step()
-                self.next_history()
-            else:
-                self.info("Aborted conversion, no items to convert.")
-                return
-
+    def _convert(self):
         convert_count = 0
         for item in self.valid_items:
             for _, status in item['targets'].items():
@@ -347,6 +340,16 @@ class Dicom2MHAConverter(ArchiveConverter):
                     success_count += 1 if success else 0
 
         self.info(f"{success_count} converted successfully.", self.get_history_report())
+
+    def convert(self):
+        for step in [self._extract_metadata, self._apply_mappings, self._resolve_duplicates, self._convert]:
+            if self.has_valid_items:
+                step()
+                self.next_history()
+            else:
+                self.info("Aborted conversion, no items to convert.")
+                return
+
         self.complete()
 
     def item_log_value(self, item):
