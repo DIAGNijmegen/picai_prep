@@ -85,8 +85,14 @@ class Dicom2MHAConverter(ArchiveConverter):
                     print(f"Invalid key '{key}' in '{name}' mapping, see metadata.json for valid keys.")
             self.mappings[name] = tech_mapping
 
+        self.next_history()  # create initial history step with no errors
+        self.next_history()  # working history
+
+    def _check_archive_paths(self):
+        """
+        Check that all input paths are valid
+        """
         sources = set()
-        for a in settings['archive']:
             item = {id: a.get(id, None) for id in metadata_defaults.keys()}
             self.items.append(item)
             source = a['path'] if os.path.isabs(a['path']) else os.path.abspath(os.path.join(input_path, a['path']))
@@ -100,15 +106,14 @@ class Dicom2MHAConverter(ArchiveConverter):
                 item['error'] = (f"Provided archive item path already exists ({a['path']})", 'path already exists')
             sources.add(source)
 
-        self.next_history()  # create initial history step with no errors
-        self.next_history()  # this history
         for item in self.items:  # add errors retroactively
             if 'error' in item:
                 error, log = item['error']
                 item['error'] = error
                 self.item_log(item, log)
-        self.info("Provided dcm2mha archive is valid.", self.get_history_report())  # report number of valid items after adding errors
-        self.next_history()  # next history
+
+         # report number of valid items after adding errors
+        self.info("Provided dcm2mha archive is valid.", self.get_history_report())
 
     def _extract_metadata_function(self, item):
         file_reader, series_reader = make_sitk_readers()
@@ -342,7 +347,13 @@ class Dicom2MHAConverter(ArchiveConverter):
         self.info(f"{success_count} converted successfully.", self.get_history_report())
 
     def convert(self):
-        for step in [self._extract_metadata, self._apply_mappings, self._resolve_duplicates, self._convert]:
+        for step in [
+            self._check_archive_paths,
+            self._extract_metadata,
+            self._apply_mappings,
+            self._resolve_duplicates,
+            self._convert
+        ]:
             if self.has_valid_items:
                 step()
                 self.next_history()
