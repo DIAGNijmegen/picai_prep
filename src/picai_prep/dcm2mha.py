@@ -96,15 +96,15 @@ class Dicom2MHAConverter(ArchiveConverter):
         for a in tqdm(self.settings['archive'], desc="Checking archive paths"):
             item = {id: a.get(id, None) for id in metadata_defaults.keys()}
             self.items.append(item)
-            source = a['path'] if os.path.isabs(a['path']) else os.path.abspath(os.path.join(self.input_dir, a['path']))
+            source = os.path.abspath(os.path.join(self.input_dir, a['path']))
             item['source'] = source
 
             if not os.path.exists(source):
-                item['error'] = (f"Provided archive item path not found ({a['path']})", 'path not found')
+                item['error'] = (f"Provided archive item path not found ({source})", 'path not found')
             elif not os.path.isdir(source):
-                item['error'] = (f"Provided archive item path is not a directory ({a['path']})", 'path not a directory')
+                item['error'] = (f"Provided archive item path is not a directory ({source})", 'path not a directory')
             elif source in sources:
-                item['error'] = (f"Provided archive item path already exists ({a['path']})", 'path already exists')
+                item['error'] = (f"Provided archive item path already exists ({source})", 'path already exists')
             sources.add(source)
 
         for item in self.items:  # add errors retroactively
