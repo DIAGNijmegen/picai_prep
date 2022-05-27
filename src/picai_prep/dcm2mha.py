@@ -93,6 +93,7 @@ class Dicom2MHAConverter(ArchiveConverter):
         Check that all input paths are valid
         """
         sources = set()
+        for a in tqdm(settings['archive'], desc="Checking archive paths"):
             item = {id: a.get(id, None) for id in metadata_defaults.keys()}
             self.items.append(item)
             source = a['path'] if os.path.isabs(a['path']) else os.path.abspath(os.path.join(input_path, a['path']))
