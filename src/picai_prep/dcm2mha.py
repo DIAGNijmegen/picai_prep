@@ -64,13 +64,13 @@ class Dicom2MHAConverter(ArchiveConverter):
 
         # read and verify conversion settings
         with open(settings_path) as fp:
-            settings = json.load(fp)
-        jsonschema.validate(settings, dcm2mha_schema, cls=jsonschema.Draft7Validator)
+            self.settings = json.load(fp)
+        jsonschema.validate(self.settings, dcm2mha_schema, cls=jsonschema.Draft7Validator)
 
         # collect relevant metadata to extract (predefined StudyInstanceUID and PatientID)
         self.metadata = set()
         self.mappings = dict()
-        for name, mapping in settings['mappings'].items():
+        for name, mapping in self.settings['mappings'].items():
             tech_mapping = dict()
             for key, value in mapping.items():
                 try:
@@ -93,10 +93,10 @@ class Dicom2MHAConverter(ArchiveConverter):
         Check that all input paths are valid
         """
         sources = set()
-        for a in tqdm(settings['archive'], desc="Checking archive paths"):
+        for a in tqdm(self.settings['archive'], desc="Checking archive paths"):
             item = {id: a.get(id, None) for id in metadata_defaults.keys()}
             self.items.append(item)
-            source = a['path'] if os.path.isabs(a['path']) else os.path.abspath(os.path.join(input_path, a['path']))
+            source = a['path'] if os.path.isabs(a['path']) else os.path.abspath(os.path.join(self.input_dir, a['path']))
             item['source'] = source
 
             if not os.path.exists(source):
@@ -210,7 +210,7 @@ class Dicom2MHAConverter(ArchiveConverter):
     def maps_to(mapping, metadata):
         """metadata maps to 'mapping' if any value in each key match"""
         for key, values in mapping.items():
-            if not any(v in metadata[key] for v in values):
+            if not any(v == metadata[key] for v in values):
                 return False
         return True
 
@@ -355,7 +355,7 @@ class Dicom2MHAConverter(ArchiveConverter):
             self._resolve_duplicates,
             self._convert
         ]:
-            if self.has_valid_items:
+            if self.has_valid_items or step == self._check_archive_paths:
                 step()
                 self.next_history()
             else:
