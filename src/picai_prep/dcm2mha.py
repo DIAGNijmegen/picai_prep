@@ -113,7 +113,7 @@ class Dicom2MHAConverter(ArchiveConverter):
                 item['error'] = error
                 self.item_log(item, log)
 
-         # report number of valid items after adding errors
+        # report number of valid items after adding errors
         self.info("Provided dcm2mha archive is valid.", self.get_history_report())
 
     def _extract_metadata_function(self, item):
