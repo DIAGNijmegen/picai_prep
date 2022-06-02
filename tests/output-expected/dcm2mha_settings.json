@@ -1,4 +1,7 @@
 {
+    "options": {
+        "resolve_duplicates": false
+    },
     "mappings": {
         "t2w": {
             "SeriesDescription": [

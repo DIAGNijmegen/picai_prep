@@ -28,7 +28,10 @@ from picai_prep.archive import ArchiveConverter
 from picai_prep.data_utils import PathLike, atomic_image_write
 from picai_prep.utilities import (dcm2mha_schema, get_pydicom_value,
                                   lower_strip, make_sitk_readers,
-                                  metadata_defaults, metadata_dict, plural)
+                                  metadata_defaults, dicom_tags, plural)
+
+
+
 
 
 class Dicom2MHAConverter(ArchiveConverter):
@@ -74,7 +77,7 @@ class Dicom2MHAConverter(ArchiveConverter):
             tech_mapping = dict()
             for key, value in mapping.items():
                 try:
-                    tech = metadata_dict[lower_strip(key)]
+                    tech = dicom_tags[lower_strip(key)]
                     self.metadata.add(tech)
 
                     if len(value) == 0 or any(type(v) is not str for v in value):
@@ -391,7 +394,7 @@ def read_image_series(image_series_path):
 
         file_reader.SetFileName(dicom_slice_paths[-1])
         dicom_slice = file_reader.Execute()
-        for key in metadata_dict.values():
+        for key in dicom_tags.values():
             if dicom_slice.HasMetaDataKey(key) and len(dicom_slice.GetMetaData(key)) > 0:
                 image.SetMetaData(key, dicom_slice.GetMetaData(key))
     except RuntimeError:
@@ -410,7 +413,7 @@ def read_image_series(image_series_path):
         image = sitk.GetImageFromArray(image)
         image.SetSpacing(list(slices[0].PixelSpacing) + [slices[0].SliceThickness])
 
-        for key in metadata_dict.values():
+        for key in dicom_tags.values():
             value = get_pydicom_value(files[0], key)
             if value is not None:
                 image.SetMetaData(key, value)

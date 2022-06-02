@@ -36,6 +36,9 @@ dcm2mha_schema = {
                 }
             },
             "additionalProperties": False
+        },
+        "options": {
+            "type": "object"
         }
     },
     "additionalProperties": False,
