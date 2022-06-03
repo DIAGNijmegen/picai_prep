@@ -4,11 +4,11 @@
 This repository contains standardized functions to process 3D medical images and image archives —with its processing strategy being geared towards clinically significant prostate cancer (csPCa) detection in MRI. It is used for the official preprocessing pipeline of the [PI-CAI challenge](https://pi-cai.grand-challenge.org/).
 
 ## Supported Conversions
-- [`DICOM Archive`][dicom-archive] → [`MHA Archive`][mha-archive]
-- [`MHA Archive`][mha-archive] → [`nnU-Net Raw Data Archive`][nnunet-archive]
-- [`nnU-Net Raw Data Archive`][nnunet-archive] → [`nnDetection Raw Data Archive`][nndetection-archive]
+- [`DICOM Archive` → `MHA Archive`][dcm2mha]
+- [`MHA Archive` → `nnU-Net Raw Data Archive`][mha2nnunet]
+- [`nnU-Net Raw Data Archive` → `nnDetection Raw Data Archive`][nnunet2nndet]
 
-Note, [`MHA Archive`][mha-archive] → [`nnU-Net Raw Data Archive`][nnunet-archive] conversion includes resampling sequences to a shared voxel spacing, taking a centre crop, and optionally, aligning sequences based on the scans's metadata. These [steps](src/picai_prep/preprocessing.py#L462) can also be applied independently.
+Note: the [`MHA Archive` → `nnU-Net Raw Data Archive`][mha2nnunet] conversion includes resampling sequences to a shared voxel spacing (per sample). Optionally, this step can resample all samples to a uniform voxel spacing and/or take a centre crop.
 
 ## Installation
 `picai_prep` is pip-installable:
@@ -230,3 +230,6 @@ Nijmegen, The Netherlands
 [mha-archive]: #what-is-an-mha-archive
 [nnunet-archive]: https://github.com/MIC-DKFZ/nnUNet/blob/master/documentation/dataset_conversion.md
 [nndetection-archive]: https://github.com/MIC-DKFZ/nnDetection/#adding-new-data-sets
+[dcm2mha]: #dicom-archive--mha-archive
+[mha2nnunet]: #mha-archive--nnu-net-raw-data-archive
+[nnunet2nndet]: #nnu-net-raw-data-archive--nndetection-raw-data-archive
