@@ -32,8 +32,8 @@ class PreprocessingSettings():
     """
     Preprocessing settings
     - matrix_size: number of voxels output image (z, y, x)
-    - spacing: output voxel spacing in mm (z, y, x)
-    - physical_size: size in mm/voxel of the target image (z, y, x)
+    - spacing: output voxel spacing in mm/voxel (z, y, x)
+    - physical_size: size in mm of the target image (z, y, x)
     - align_segmentation: whether to align the scans using the centroid of the provided segmentation
     """
     matrix_size: Optional[Iterable[int]] = None
@@ -118,16 +118,35 @@ def resample_img(
 
 def crop_or_pad(
     image: "Union[sitk.Image, npt.NDArray[Any]]",
-    size: Iterable[int] = (64, 64, 64)
+    size: Optional[Iterable[int]] = (20, 256, 256),
+    physical_size: Optional[Iterable[float]] = None,
 ) -> "Union[sitk.Image, npt.NDArray[Any]]":
     """
     Resize image by cropping and/or padding
+
+    Parameters:
+    - image: image to be resized (sitk.Image or numpy.ndarray)
+    - size: target size in voxels (z, y, x)
+    - physical_size: target size in mm (z, y, x)
+
+    Either size or physical_size must be provided.
+
+    Returns:
+    - resized image (same type as input)
     """
     # input conversion and verification
+    if physical_size is not None:
+        # convert physical size to voxel size (only supported for SimpleITK)
+        assert isinstance(image, sitk.Image), "Crop/padding by physical size is only supported for SimpleITK images."
+        physical_size = list(physical_size)[::-1]
+        size = [length/spacing for length, spacing in zip(physical_size, image.GetSpacing())]
+        size = [int(np.round(x)) for x in size]
     if isinstance(image, sitk.Image):
+        # determine shape and convert convention of (z, y, x) to (x, y, z) for SimpleITK
         shape = image.GetSize()
         size = list(size)[::-1]
     else:
+        # determine shape for numpy array
         assert isinstance(image, (np.ndarray, np.generic))
         shape = image.shape
         size = list(size)
@@ -216,7 +235,7 @@ class Sample:
     def centre_crop(self):
         """Centre crop scans and label"""
         self.scans = [
-            crop_or_pad(scan, size=self.settings.matrix_size)
+            crop_or_pad(scan, size=self.settings.matrix_size, physical_size=self.settings.physical_size)
             for scan in self.scans
         ]
 
@@ -264,7 +283,7 @@ class Sample:
             # resample scans and label to specified spacing
             self.resample_spacing()
 
-        if self.settings.matrix_size is not None:
+        if self.settings.matrix_size is not None or self.settings.physical_size is not None:
             # perform centre crop
             self.centre_crop()
 
