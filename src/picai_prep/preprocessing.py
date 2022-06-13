@@ -138,8 +138,8 @@ def crop_or_pad(
     if physical_size is not None:
         # convert physical size to voxel size (only supported for SimpleITK)
         assert isinstance(image, sitk.Image), "Crop/padding by physical size is only supported for SimpleITK images."
-        physical_size = list(physical_size)[::-1]
-        size = [length/spacing for length, spacing in zip(physical_size, image.GetSpacing())]
+        spacing_zyx = list(image.GetSpacing())[::-1]
+        size = [length/spacing for length, spacing in zip(physical_size, spacing_zyx)]
         size = [int(np.round(x)) for x in size]
     if isinstance(image, sitk.Image):
         # determine shape and convert convention of (z, y, x) to (x, y, z) for SimpleITK
