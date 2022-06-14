@@ -14,7 +14,7 @@
 
 
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable, List, Optional, Union
+from typing import Any, Callable, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import SimpleITK as sitk
@@ -32,13 +32,15 @@ class PreprocessingSettings():
     """
     Preprocessing settings
     - matrix_size: number of voxels output image (z, y, x)
-    - spacing: output voxel spacing in mm (z, y, x)
-    - physical_size: size in mm/voxel of the target image (z, y, x)
+    - spacing: output voxel spacing in mm/voxel (z, y, x)
+    - physical_size: size in mm of the target image (z, y, x)
+    - crop_only: only crop to specified size (i.e., do not pad)
     - align_segmentation: whether to align the scans using the centroid of the provided segmentation
     """
     matrix_size: Optional[Iterable[int]] = None
     spacing: Optional[Iterable[float]] = None
     physical_size: Optional[Iterable[float]] = None
+    crop_only: bool = False
     align_segmentation: Optional[sitk.Image] = None
 
     def __post_init__(self):
@@ -116,18 +118,49 @@ def resample_img(
     return image
 
 
-def crop_or_pad(
+def input_verification_crop_or_pad(
     image: "Union[sitk.Image, npt.NDArray[Any]]",
-    size: Iterable[int] = (64, 64, 64)
-) -> "Union[sitk.Image, npt.NDArray[Any]]":
+    size: Optional[Iterable[int]] = (20, 256, 256),
+    physical_size: Optional[Iterable[float]] = None,
+) -> Tuple[Iterable[int], Iterable[int]]:
     """
-    Resize image by cropping and/or padding
+    Calculate target size for cropping and/or padding input image
+
+    Parameters:
+    - image: image to be resized (sitk.Image or numpy.ndarray)
+    - size: target size in voxels (z, y, x)
+    - physical_size: target size in mm (z, y, x)
+
+    Either size or physical_size must be provided.
+
+    Returns:
+    - shape of original image (in convention of SimpleITK (x, y, z) or numpy (z, y, x))
+    - size of target image (in convention of SimpleITK (x, y, z) or numpy (z, y, x))
     """
     # input conversion and verification
+    if physical_size is not None:
+        # convert physical size to voxel size (only supported for SimpleITK)
+        if not isinstance(image, sitk.Image):
+            raise ValueError("Crop/padding by physical size is only supported for SimpleITK images.")
+        spacing_zyx = list(image.GetSpacing())[::-1]
+        size_zyx = [length/spacing for length, spacing in zip(physical_size, spacing_zyx)]
+        size_zyx = [int(np.round(x)) for x in size_zyx]
+
+        if size is None:
+            # use physical size
+            size = size_zyx
+        else:
+            # verify size
+            if size != size_zyx:
+                raise ValueError(f"Size and physical size do not match. Size: {size}, physical size: "
+                                 f"{physical_size}, spacing: {spacing_zyx}")
+
     if isinstance(image, sitk.Image):
+        # determine shape and convert convention of (z, y, x) to (x, y, z) for SimpleITK
         shape = image.GetSize()
         size = list(size)[::-1]
     else:
+        # determine shape for numpy array
         assert isinstance(image, (np.ndarray, np.generic))
         shape = image.shape
         size = list(size)
@@ -135,13 +168,43 @@ def crop_or_pad(
     assert rank <= len(shape) <= rank + 1, \
         f"Example size doesn't fit image size. Got shape={shape}, output size={size}"
 
+    return shape, size
+
+
+def crop_or_pad(
+    image: "Union[sitk.Image, npt.NDArray[Any]]",
+    size: Optional[Iterable[int]] = (20, 256, 256),
+    physical_size: Optional[Iterable[float]] = None,
+    crop_only: bool = False,
+) -> "Union[sitk.Image, npt.NDArray[Any]]":
+    """
+    Resize image by cropping and/or padding
+
+    Parameters:
+    - image: image to be resized (sitk.Image or numpy.ndarray)
+    - size: target size in voxels (z, y, x)
+    - physical_size: target size in mm (z, y, x)
+
+    Either size or physical_size must be provided.
+
+    Returns:
+    - resized image (same type as input)
+    """
+    # input conversion and verification
+    shape, size = input_verification_crop_or_pad(image, size, physical_size)
+
     # set identity operations for cropping and padding
+    rank = len(size)
     padding = [[0, 0] for _ in range(rank)]
     slicer = [slice(None) for _ in range(rank)]
 
     # for each dimension, determine process (cropping or padding)
     for i in range(rank):
         if shape[i] < size[i]:
+            if crop_only:
+                continue
+
+            # set padding settings
             padding[i][0] = (size[i] - shape[i]) // 2
             padding[i][1] = size[i] - shape[i] - padding[i][0]
         else:
@@ -213,15 +276,20 @@ class Sample:
         if self.lbl is not None:
             self.lbl = resample_img(self.lbl, out_spacing=spacing, is_label=True)
 
-    def centre_crop(self):
-        """Centre crop scans and label"""
+    def centre_crop_or_pad(self):
+        """Centre crop and/or pad scans and label"""
+        kwargs = {
+            "size": self.settings.matrix_size,
+            "physical_size": self.settings.physical_size,
+            "crop_only": self.settings.crop_only,
+        }
         self.scans = [
-            crop_or_pad(scan, size=self.settings.matrix_size)
+            crop_or_pad(scan, **kwargs)
             for scan in self.scans
         ]
 
         if self.lbl is not None:
-            self.lbl = crop_or_pad(self.lbl, size=self.settings.matrix_size)
+            self.lbl = crop_or_pad(self.lbl, **kwargs)
 
     def align_physical_metadata(self, check_almost_equal=True):
         """Align the origin and direction of each scan, and label"""
@@ -264,9 +332,9 @@ class Sample:
             # resample scans and label to specified spacing
             self.resample_spacing()
 
-        if self.settings.matrix_size is not None:
-            # perform centre crop
-            self.centre_crop()
+        if self.settings.matrix_size is not None or self.settings.physical_size is not None:
+            # perform centre crop and/or pad
+            self.centre_crop_or_pad()
 
         # resample scans and label to first scan's spacing, field-of-view, etc.
         self.resample_to_first_scan()
@@ -294,8 +362,8 @@ class Sample:
 def resample_to_reference_scan(
     image: "Union[npt.NDArray[Any], sitk.Image]",
     reference_scan_original: sitk.Image,
-    reference_scan_preprocessed: Optional[sitk.Image],
-    interpolator: sitk.ResampleImageFilter = sitk.sitkLinear,
+    reference_scan_preprocessed: Optional[sitk.Image] = None,
+    interpolator: Optional[sitk.ResampleImageFilter] = None,
 ) -> sitk.Image:
     """
     Translate image/prediction/annotation to physical space of original scan (e.g., T2-weighted scan)
@@ -303,19 +371,30 @@ def resample_to_reference_scan(
     Parameters:
     - image: scan, detection map or (softmax) prediction
     - reference_scan_original: SimpleITK image to which the prediction should be resampled and resized
-    - reference_scan_preprocessed: SimpleITK image with physical metadata equal to `image`
-        (e.g., scan in nnUNet Raw Data Archive). Optional.
+    - reference_scan_preprocessed: (Optional) SimpleITK image with physical metadata for `image`
+        (e.g., scan in nnUNet Raw Data Archive). If not provided, `image` should be a SimpleITK image.
 
     Returns:
     - resampled image, in same physical space as reference_scan_original
     """
     # convert image to SimpleITK image and copy physical metadata
     if not isinstance(image, sitk.Image):
+        if reference_scan_preprocessed is None:
+            raise ValueError("Need SimpleITK Image or reference scan for phsyical metadata!")
         image: sitk.Image = sitk.GetImageFromArray(image)
-        assert reference_scan_preprocessed is not None, "Need reference scan for phsyical metadata!"
 
     if reference_scan_preprocessed is not None:
         image.CopyInformation(reference_scan_preprocessed)
+
+    if interpolator is None:
+        # determine interpolation method based on image dtype
+        dtype_name = image.GetPixelIDTypeAsString()
+        if "integer" in dtype_name:
+            interpolator = sitk.sitkNearestNeighbor
+        elif "float" in dtype_name:
+            interpolator = sitk.sitkLinear
+        else:
+            raise ValueError(f"Unknown pixel type {dtype_name}")
 
     # prepare resampling to original scan
     resampler = sitk.ResampleImageFilter()  # default linear
