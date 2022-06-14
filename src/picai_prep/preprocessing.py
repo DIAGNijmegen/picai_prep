@@ -14,7 +14,7 @@
 
 
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable, List, Optional, Union
+from typing import Any, Callable, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import SimpleITK as sitk
@@ -116,6 +116,59 @@ def resample_img(
     return image
 
 
+def input_verification_crop_or_pad(
+    image: "Union[sitk.Image, npt.NDArray[Any]]",
+    size: Optional[Iterable[int]] = (20, 256, 256),
+    physical_size: Optional[Iterable[float]] = None,
+) -> Tuple[Iterable[int], Iterable[int]]:
+    """
+    Calculate target size for cropping and/or padding input image
+
+    Parameters:
+    - image: image to be resized (sitk.Image or numpy.ndarray)
+    - size: target size in voxels (z, y, x)
+    - physical_size: target size in mm (z, y, x)
+
+    Either size or physical_size must be provided.
+
+    Returns:
+    - shape of original image (in convention of SimpleITK (x, y, z) or numpy (z, y, x))
+    - size of target image (in convention of SimpleITK (x, y, z) or numpy (z, y, x))
+    """
+    # input conversion and verification
+    if physical_size is not None:
+        # convert physical size to voxel size (only supported for SimpleITK)
+        if not isinstance(image, sitk.Image):
+            raise ValueError("Crop/padding by physical size is only supported for SimpleITK images.")
+        spacing_zyx = list(image.GetSpacing())[::-1]
+        size_zyx = [length/spacing for length, spacing in zip(physical_size, spacing_zyx)]
+        size_zyx = [int(np.round(x)) for x in size_zyx]
+
+        if size is None:
+            # use physical size
+            size = size_zyx
+        else:
+            # verify size
+            if size != size_zyx:
+                raise ValueError(f"Size and physical size do not match. Size: {size}, physical size: "
+                                 f"{physical_size}, spacing: {spacing_zyx}")
+
+    if isinstance(image, sitk.Image):
+        # determine shape and convert convention of (z, y, x) to (x, y, z) for SimpleITK
+        shape = image.GetSize()
+        size = list(size)[::-1]
+    else:
+        # determine shape for numpy array
+        assert isinstance(image, (np.ndarray, np.generic))
+        shape = image.shape
+        size = list(size)
+    rank = len(size)
+    assert rank <= len(shape) <= rank + 1, \
+        f"Example size doesn't fit image size. Got shape={shape}, output size={size}"
+
+    return shape, size
+
+
 def crop_or_pad(
     image: "Union[sitk.Image, npt.NDArray[Any]]",
     size: Optional[Iterable[int]] = (20, 256, 256),
@@ -135,26 +188,10 @@ def crop_or_pad(
     - resized image (same type as input)
     """
     # input conversion and verification
-    if physical_size is not None:
-        # convert physical size to voxel size (only supported for SimpleITK)
-        assert isinstance(image, sitk.Image), "Crop/padding by physical size is only supported for SimpleITK images."
-        spacing_zyx = list(image.GetSpacing())[::-1]
-        size = [length/spacing for length, spacing in zip(physical_size, spacing_zyx)]
-        size = [int(np.round(x)) for x in size]
-    if isinstance(image, sitk.Image):
-        # determine shape and convert convention of (z, y, x) to (x, y, z) for SimpleITK
-        shape = image.GetSize()
-        size = list(size)[::-1]
-    else:
-        # determine shape for numpy array
-        assert isinstance(image, (np.ndarray, np.generic))
-        shape = image.shape
-        size = list(size)
-    rank = len(size)
-    assert rank <= len(shape) <= rank + 1, \
-        f"Example size doesn't fit image size. Got shape={shape}, output size={size}"
+    shape, size = input_verification_crop_or_pad(image, size, physical_size)
 
     # set identity operations for cropping and padding
+    rank = len(size)
     padding = [[0, 0] for _ in range(rank)]
     slicer = [slice(None) for _ in range(rank)]
 
@@ -177,6 +214,42 @@ def crop_or_pad(
         return pad_filter.Execute(image[tuple(slicer)])
     else:
         return np.pad(image[tuple(slicer)], padding)
+
+
+def crop(
+    image: "Union[sitk.Image, npt.NDArray[Any]]",
+    max_size: Optional[Iterable[int]] = (20, 256, 256),
+    max_physical_size: Optional[Iterable[float]] = None,
+) -> "Union[sitk.Image, npt.NDArray[Any]]":
+    """
+    Resize image by cropping to maximum size
+
+    Parameters:
+    - image: image to be resized (sitk.Image or numpy.ndarray)
+    - size: target size in voxels (z, y, x)
+    - physical_size: target size in mm (z, y, x)
+
+    Either size or physical_size must be provided.
+
+    Returns:
+    - resized image (same type as input)
+    """
+    # input conversion and verification
+    shape, max_size = input_verification_crop_or_pad(image, max_size, max_physical_size)
+
+    # set identity operations for cropping
+    rank = len(max_size)
+    slicer = [slice(None) for _ in range(rank)]
+
+    # for each dimension, determine if cropping is required
+    for i in range(rank):
+        # create slicer object to crop image
+        idx_start = int(np.floor((shape[i] - max_size[i]) / 2.))
+        idx_end = idx_start + max_size[i]
+        slicer[i] = slice(idx_start, idx_end)
+
+    # crop image
+    image[tuple(slicer)]
 
 
 @dataclass
