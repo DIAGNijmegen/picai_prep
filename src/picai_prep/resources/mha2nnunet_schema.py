@@ -52,15 +52,9 @@ mha2nnunet_schema = {
                     "description": "Target resolution in mm/voxel (z, y, x). Automatically calculated if `physical_size` and `matrix_size` are set.",
                     "$ref": "#/$defs/3d"
                 },
-
-                # preprocess to at most specified size
-                "max_physical_size": {
-                    "description": "Maximum field-of-view in mm (z, y, x).",
-                    "$ref": "#/$defs/3d"
-                },
-                "max_matrix_size": {
-                    "description": "Maximum matrix size in voxels (z, y, x).",
-                    "$ref": "#/$defs/3d"
+                "crop_only": {
+                    "description": "Only crop to specified size (i.e., do not pad)",
+                    "type": "boolean"
                 },
             },
             "additionalProperties": False

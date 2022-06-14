@@ -34,15 +34,13 @@ class PreprocessingSettings():
     - matrix_size: number of voxels output image (z, y, x)
     - spacing: output voxel spacing in mm/voxel (z, y, x)
     - physical_size: size in mm of the target image (z, y, x)
-    - max_matrix_size: maximum number of voxels output image (z, y, x) (will only crop, not pad)
-    - max_physical_size: maximum size in mm of the target image (z, y, x) (will only crop, not pad)
+    - crop_only: only crop to specified size (i.e., do not pad)
     - align_segmentation: whether to align the scans using the centroid of the provided segmentation
     """
     matrix_size: Optional[Iterable[int]] = None
     spacing: Optional[Iterable[float]] = None
     physical_size: Optional[Iterable[float]] = None
-    max_matrix_size: Optional[Iterable[int]] = None
-    max_physical_size: Optional[Iterable[float]] = None
+    crop_only: bool = False
     align_segmentation: Optional[sitk.Image] = None
 
     def __post_init__(self):
@@ -65,14 +63,6 @@ class PreprocessingSettings():
                     self.matrix_size
                 )
             ]
-
-        if self.max_matrix_size is not None:
-            if self.matrix_size is not None:
-                raise ValueError("matrix_size may not be set if max_matrix_size is set")
-
-        if self.max_physical_size is not None:
-            if self.physical_size is not None:
-                raise ValueError("physical_size may not be set if max_physical_size is set")
 
         if self.align_segmentation is not None:
             raise NotImplementedError("Alignment of scans based on segmentation is not implemented yet.")
@@ -185,6 +175,7 @@ def crop_or_pad(
     image: "Union[sitk.Image, npt.NDArray[Any]]",
     size: Optional[Iterable[int]] = (20, 256, 256),
     physical_size: Optional[Iterable[float]] = None,
+    crop_only: bool = False,
 ) -> "Union[sitk.Image, npt.NDArray[Any]]":
     """
     Resize image by cropping and/or padding
@@ -210,6 +201,10 @@ def crop_or_pad(
     # for each dimension, determine process (cropping or padding)
     for i in range(rank):
         if shape[i] < size[i]:
+            if crop_only:
+                continue
+
+            # set padding settings
             padding[i][0] = (size[i] - shape[i]) // 2
             padding[i][1] = size[i] - shape[i] - padding[i][0]
         else:
@@ -226,43 +221,6 @@ def crop_or_pad(
         return pad_filter.Execute(image[tuple(slicer)])
     else:
         return np.pad(image[tuple(slicer)], padding)
-
-
-def crop(
-    image: "Union[sitk.Image, npt.NDArray[Any]]",
-    max_size: Optional[Iterable[int]] = (20, 256, 256),
-    max_physical_size: Optional[Iterable[float]] = None,
-) -> "Union[sitk.Image, npt.NDArray[Any]]":
-    """
-    Resize image by cropping to maximum size
-
-    Parameters:
-    - image: image to be resized (sitk.Image or numpy.ndarray)
-    - size: target size in voxels (z, y, x)
-    - physical_size: target size in mm (z, y, x)
-
-    Either size or physical_size must be provided.
-
-    Returns:
-    - resized image (same type as input)
-    """
-    # input conversion and verification
-    shape, max_size = input_verification_crop_or_pad(image, max_size, max_physical_size)
-
-    # set identity operations for cropping
-    rank = len(max_size)
-    slicer = [slice(None) for _ in range(rank)]
-
-    # for each dimension, determine if cropping is required
-    for i in range(rank):
-        if shape[i] > max_size[i]:
-            # create slicer object to crop image
-            idx_start = int(np.floor((shape[i] - max_size[i]) / 2.))
-            idx_end = idx_start + max_size[i]
-            slicer[i] = slice(idx_start, idx_end)
-
-    # crop image
-    return image[tuple(slicer)]
 
 
 @dataclass
@@ -319,10 +277,11 @@ class Sample:
             self.lbl = resample_img(self.lbl, out_spacing=spacing, is_label=True)
 
     def centre_crop_or_pad(self):
-        """Centre crop adn/or pad scans and label"""
+        """Centre crop and/or pad scans and label"""
         kwargs = {
             "size": self.settings.matrix_size,
-            "physical_size": self.settings.physical_size
+            "physical_size": self.settings.physical_size,
+            "crop_only": self.settings.crop_only,
         }
         self.scans = [
             crop_or_pad(scan, **kwargs)
@@ -331,20 +290,6 @@ class Sample:
 
         if self.lbl is not None:
             self.lbl = crop_or_pad(self.lbl, **kwargs)
-
-    def centre_crop(self):
-        """Centre crop (but not pad) scans and label"""
-        kwargs = {
-            "max_size": self.settings.max_matrix_size,
-            "max_physical_size": self.settings.max_physical_size
-        }
-        self.scans = [
-            crop(scan, **kwargs)
-            for scan in self.scans
-        ]
-
-        if self.lbl is not None:
-            self.lbl = crop(self.lbl, **kwargs)
 
     def align_physical_metadata(self, check_almost_equal=True):
         """Align the origin and direction of each scan, and label"""
@@ -390,10 +335,6 @@ class Sample:
         if self.settings.matrix_size is not None or self.settings.physical_size is not None:
             # perform centre crop and/or pad
             self.centre_crop_or_pad()
-
-        if self.settings.max_matrix_size is not None or self.settings.max_physical_size is not None:
-            # perform centre crop (but not pad)
-            self.centre_crop()
 
         # resample scans and label to first scan's spacing, field-of-view, etc.
         self.resample_to_first_scan()
