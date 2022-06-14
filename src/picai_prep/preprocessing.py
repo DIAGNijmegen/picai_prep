@@ -255,10 +255,11 @@ def crop(
 
     # for each dimension, determine if cropping is required
     for i in range(rank):
-        # create slicer object to crop image
-        idx_start = int(np.floor((shape[i] - max_size[i]) / 2.))
-        idx_end = idx_start + max_size[i]
-        slicer[i] = slice(idx_start, idx_end)
+        if shape[i] > max_size[i]:
+            # create slicer object to crop image
+            idx_start = int(np.floor((shape[i] - max_size[i]) / 2.))
+            idx_end = idx_start + max_size[i]
+            slicer[i] = slice(idx_start, idx_end)
 
     # crop image
     return image[tuple(slicer)]
