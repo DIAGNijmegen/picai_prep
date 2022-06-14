@@ -14,6 +14,7 @@
 
 
 import json
+import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -103,7 +104,9 @@ class Series:
 
 class SeriesException(Exception):
     """Base Exception for errors in an item (series within a case)"""
-    pass
+    def __init__(self, message: str):
+        logging.error(message)
+        super().__init__(message)
 
 
 class MissingDICOMFilesError(SeriesException):

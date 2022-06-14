@@ -14,17 +14,18 @@
 
 
 import datetime
+import json
 import logging
 import os
-import json
-import jsonschema
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, InitVar
+from dataclasses import InitVar, dataclass
 from pathlib import Path
-from typing import Dict, Optional, Union, Set, Tuple, List
+from typing import Dict, List, Optional, Set, Tuple, Union
+
+import jsonschema
 
 from picai_prep.data_utils import PathLike
-from picai_prep.utilities import plural, metadata_defaults, lower_strip
+from picai_prep.utilities import lower_strip, metadata_defaults, plural
 
 
 class ArchiveConverter(ABC):
@@ -46,12 +47,11 @@ class ArchiveConverter(ABC):
         self.silent = silent
         self._start_time = datetime.datetime.now()
 
-        logfile = f'picai_prep_{datetime.datetime.now().strftime("%Y%m%d%H%M%S")}.log'
-        logging.basicConfig(filemode='w', level=logging.INFO, format='%(message)s',
-                            filename=self.output_dir / logfile)
+        logfile = self.output_dir / f'picai_prep_{datetime.datetime.now().strftime("%Y%m%d%H%M%S")}.log'
+        logging.basicConfig(filemode='w', level=logging.INFO, format='%(message)s', filename=logfile)
 
         self.info(f'Program started at {self._start_time.isoformat()}', force=True)
-        self.info(f"Output directory set to {self.output_dir.absolute().as_posix()}, writing log to {self.output_dir / logfile}")
+        self.info(f"Output directory set to {self.output_dir.absolute().as_posix()}, writing log to {logfile}")
 
     @abstractmethod
     def convert(self):
