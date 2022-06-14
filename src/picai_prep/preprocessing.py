@@ -261,7 +261,7 @@ def crop(
         slicer[i] = slice(idx_start, idx_end)
 
     # crop image
-    image[tuple(slicer)]
+    return image[tuple(slicer)]
 
 
 @dataclass
