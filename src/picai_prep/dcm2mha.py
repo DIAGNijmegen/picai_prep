@@ -16,9 +16,9 @@
 import json
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Callable, Optional, List, Dict, Union, Tuple, Set
-from pathlib import Path
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Callable, Dict, List, Optional, Set, Tuple, Union
 
 import jsonschema
 import numpy as np
@@ -28,9 +28,9 @@ from tqdm import tqdm
 
 from picai_prep.archive import ArchiveConverter
 from picai_prep.data_utils import PathLike, atomic_image_write
-from picai_prep.utilities import (dcm2mha_schema, get_pydicom_value,
-                                  lower_strip, make_sitk_readers,
-                                  metadata_defaults, dicom_tags, plural)
+from picai_prep.utilities import (dcm2mha_schema, dicom_tags,
+                                  get_pydicom_value, lower_strip,
+                                  make_sitk_readers, metadata_defaults, plural)
 
 
 @dataclass
@@ -44,9 +44,10 @@ class Series:
     resolution: Optional[np.ndarray] = None
     metadata: Optional[Dict[str, str]] = None
 
-    _error: Optional['SeriesError'] = None
+    _error: "Optional[SeriesException]" = None
     _log: List[str] = field(default_factory=list)
 
+    @property
     def is_valid(self):
         return self.error is None
 
@@ -55,8 +56,8 @@ class Series:
         return self._error.long_msg
 
     @error.setter
-    def error(self, e: 'SeriesError'):
-        if self.is_valid():
+    def error(self, e: "SeriesException"):
+        if self.is_valid:
             self.log(str(e))
         self._error = e
 
@@ -71,7 +72,7 @@ class Series:
             if num not in vdcms:
                 missing_slices = True
         if missing_slices:
-            raise SeriesError(self, f"Missing DICOM slices detected in {self.path}", "missing DICOM slices")
+            raise MissingDICOMFilesError(self.path)
         return True
 
     def extract_metadata(self, file_reader: sitk.ImageFileReader, filenames: List[PathLike]):
@@ -95,16 +96,32 @@ class Series:
                         metadata[key] = lower_strip(get_pydicom_value(data, key))
                     # extracting PatientID and StudyInstanceUID no longer performed as these are now required values
             except pydicom.errors.InvalidDicomError:
-                raise SeriesError(self, 'Could not open using either SimpleITK or pydicom', 'unreadable DICOM file')
+                raise UnreadableDICOMError(self.path)
+
             self.metadata = metadata
 
 
-class SeriesError(Exception):
-    """Exception raised for errors in an item (series within a case)"""
-    def __init__(self, item: Series, long: str, short: str = None):
-        self.long_msg = long
-        self.short_msg = short
-        item.error = self
+class SeriesException(Exception):
+    """Base Exception for errors in an item (series within a case)"""
+    pass
+
+
+class MissingDICOMFilesError(SeriesException):
+    """Exception raised when a DICOM series has missing DICOM slices"""
+    def __init__(self, path: PathLike):
+        super().__init__(f"Missing DICOM slices detected in {path}")
+
+
+class UnreadableDICOMError(SeriesException):
+    """Exception raised when a DICOM series could not be loaded"""
+    def __init__(self, path: PathLike):
+        super().__init__(f'Could not read {path} using either SimpleITK or pydicom')
+
+
+class ArchiveItemPathNotFoundError(SeriesException):
+    """Exception raised when a DICOM series could not be found"""
+    def __init__(self, path: PathLike):
+        super().__init__(f"Provided archive item path not found ({path})")
 
 
 @dataclass
@@ -122,23 +139,24 @@ class Dicom2MHACase(Case):
     def __init__(self, input_dir: Path, patient_id: str, study_id: str, paths: List[PathLike]):
         self.patient_id = patient_id
         self.study_id = study_id
-        self.items = []
+        self.items: List[Series] = []
         fullpaths = set()
         for path in paths:
-            fp = input_dir / path
-            item = Dicom2MHASeries(fp, patient_id, study_id)
+            full_path = input_dir / path
+            item = Dicom2MHASeries(full_path, patient_id, study_id)
             try:
-                if not fp.exists():
-                    raise SeriesError(item, f"Provided archive item path not found ({path})", 'path not found')
-                elif not fp.is_dir():
-                    raise SeriesError(item, f"Provided archive item path is not a directory ({path})",
-                                    'path not a directory')
+                if not full_path.exists():
+                    raise ArchiveItemPathNotFoundError(path)
+                elif not full_path.is_dir():
+                    raise NotADirectoryError(path)
                 elif path in fullpaths:
                     raise SeriesError(item, f"Provided archive item path already exists ({path})", 'path already exists')
-            except SeriesError:
+            except SeriesException as e:
+                # log error and continue
+                # TODO: log error (use str(e) for human readable error)
                 continue
             else:
-                fullpaths.add(fp)
+                fullpaths.add(full_path)
             finally:
                 self.items.append(item)
         if self.has_invalid_items():
@@ -146,10 +164,10 @@ class Dicom2MHACase(Case):
 
     @property
     def valid_items(self):
-        return [item for item in self.items if item.is_valid()]
+        return [item for item in self.items if item.is_valid]
 
     def has_invalid_items(self):
-        return not all([item.is_valid() for item in self.items])
+        return not all([item.is_valid for item in self.items])
 
     def invalidate(self):
         for item in self.valid_items:
@@ -169,7 +187,9 @@ class Dicom2MHACase(Case):
                     item.verify_dicom_filenames(dicom_filenames)
 
                 item.extract_metadata(file_reader, dicom_filenames)
-            except SeriesError:
+            except SeriesException as e:
+                # log error and continue
+                # TODO: log error (use str(e) for its human-readable message)
                 continue
 
 
@@ -179,16 +199,14 @@ class Dicom2MHAConverter:
         self.output_dir = Path(output_dir)
         if isinstance(dcm2mha_settings, PathLike):
             with open(dcm2mha_settings) as fp:
-                settings = json.load(fp)
-        else:
-            settings = dcm2mha_settings
+                dcm2mha_settings = json.load(fp)
 
         from picai_prep.utilities import dcm2mha_schema
-        jsonschema.validate(settings, dcm2mha_schema, cls=jsonschema.Draft7Validator)
+        jsonschema.validate(dcm2mha_settings, dcm2mha_schema, cls=jsonschema.Draft7Validator)
 
-        self.options = settings.get('options', {})
-        self.mappings, self.tags = self._dicom_names_to_tags(settings.get('mappings', {}))
-        self.cases = self._define_cases(settings.get('archive', {}))
+        self.options = dcm2mha_settings.get('options', {})
+        self.mappings, self.tags = self._dicom_names_to_tags(dcm2mha_settings.get('mappings', {}))
+        self.cases = self._define_cases(dcm2mha_settings.get('archive', {}))
 
     @property
     def num_threads(self):
@@ -227,19 +245,14 @@ class Dicom2MHAConverter:
             mappings[name] = map
         return mappings, tags
 
-    def _extract_metadata(self):
-        """
-        Collect all dicom files for each case
-        """
+    def convert(self):
         with ThreadPoolExecutor(max_workers=self.num_threads) as pool:
             futures = {pool.submit(case.extract_metadata, case): (case, self.tags, self.verify_dicom_filenames) for case in self.cases}
             for future in tqdm(as_completed(futures), total=len(self.cases)):
                 future.result()
-
-    def convert(self):
-        self._extract_metadata()
-        # ...
-
+            for case in self.cases:
+                case._extract_metadata()
+                # ...
 
 
 class Dicom2MHAConverter(ArchiveConverter):
