@@ -334,8 +334,8 @@ class Sample:
     def centre_crop(self):
         """Centre crop (but not pad) scans and label"""
         kwargs = {
-            "size": self.settings.max_matrix_size,
-            "physical_size": self.settings.max_physical_size
+            "max_size": self.settings.max_matrix_size,
+            "max_physical_size": self.settings.max_physical_size
         }
         self.scans = [
             crop(scan, **kwargs)
