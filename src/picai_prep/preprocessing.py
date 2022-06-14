@@ -388,12 +388,13 @@ def resample_to_reference_scan(
 
     if interpolator is None:
         # determine interpolation method based on image dtype
-        if "integer" in image.GetPixelIDTypeAsString():
+        dtype_name = image.GetPixelIDTypeAsString()
+        if "integer" in dtype_name:
             interpolator = sitk.sitkNearestNeighbor
-        elif "float" in image.GetPixelIDTypeAsString():
+        elif "float" in dtype_name:
             interpolator = sitk.sitkLinear
         else:
-            raise ValueError(f"Unknown pixel type {image.GetPixelIDTypeAsString()}")
+            raise ValueError(f"Unknown pixel type {dtype_name}")
 
     # prepare resampling to original scan
     resampler = sitk.ResampleImageFilter()  # default linear
