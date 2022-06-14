@@ -176,21 +176,16 @@ class Dicom2MHACase(Case):
     def extract_metadata(self, verify_dicom_filenames: bool = True):
         file_reader, series_reader = make_sitk_readers()
         for item in self.valid_items:
-            try:
-                dicom_filenames = [os.path.basename(dcm) for dcm in series_reader.GetGDCMSeriesFileNames(item.path)]
+            dicom_filenames = [os.path.basename(dcm) for dcm in series_reader.GetGDCMSeriesFileNames(item.path)]
 
-                # verify DICOM files are found
-                if len(dicom_filenames) == 0:
-                    raise SeriesError(item, f"No DICOM data found at {item.path}", "missing DICOM data")
+            # verify DICOM files are found
+            if len(dicom_filenames) == 0:
+                raise SeriesError(item, f"No DICOM data found at {item.path}", "missing DICOM data")
 
-                if verify_dicom_filenames:
-                    item.verify_dicom_filenames(dicom_filenames)
+            if verify_dicom_filenames:
+                item.verify_dicom_filenames(dicom_filenames)
 
-                item.extract_metadata(file_reader, dicom_filenames)
-            except SeriesException as e:
-                # log error and continue
-                # TODO: log error (use str(e) for its human-readable message)
-                continue
+            item.extract_metadata(file_reader, dicom_filenames)
 
 
 class Dicom2MHAConverter:
