@@ -19,102 +19,12 @@ import os
 import json
 import jsonschema
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, InitVar
 from pathlib import Path
 from typing import Dict, Optional, Union, Set, Tuple, List
 
 from picai_prep.data_utils import PathLike
 from picai_prep.utilities import plural, metadata_defaults, lower_strip
-
-
-class Case:
-    pass
-    # path: PathLike
-    # patient_id: Optional[str] = None
-    # study_id: Optional[str] = None
-    # input_dir: Optional[PathLike] = None
-    # skip: Optional[bool] = None
-    #
-    # # image metadata
-    # resolution: Optional[List[float]] = None
-    # metadata: Optional[Dict[str, str]] = None
-    #
-    # # dcm2mha specific attributes
-    # dicom_paths: Optional[List[PathLike]] = None
-    # mappings: Optional[List[str]] = None
-    # targets: List[PathLike] = None  # TODO: fix this default value/type
-@dataclass
-class Dicom2MHAItem:
-    patient_id: str
-    study_id: str
-    path: Path
-
-    def __post_init__(self):
-        self.resolution = None
-        self.metadata = None
-
-class Dicom2MHACase(Case):
-    def __init__(self):
-        self.items = {}
-
-    def add(self, input_dir: Path, patient_id: str, study_id: str, path: PathLike):
-        source = input_dir / path
-
-        if not source.exists():
-            item['error'] = (f"Provided archive item path not found ({source})", 'path not found')
-        elif not os.path.isdir(source):
-            item['error'] = (f"Provided archive item path is not a directory ({source})", 'path not a directory')
-        elif source in sources:
-            item['error'] = (f"Provided archive item path already exists ({source})", 'path already exists')
-        sources.add(source)
-
-
-class Dicom2MHAConverter:
-    def __init__(self, input_dir: PathLike, output_dir: PathLike, dcm2mha_settings: Union[PathLike, Dict]):
-        self.input_dir = Path(input_dir)
-        self.output_dir = Path(output_dir)
-        if isinstance(dcm2mha_settings, PathLike):
-            with open(dcm2mha_settings) as fp:
-                settings = json.load(fp)
-        else:
-            settings = dcm2mha_settings
-
-        from picai_prep.utilities import dcm2mha_schema
-        jsonschema.validate(settings, dcm2mha_schema, cls=jsonschema.Draft7Validator)
-
-        self.options = settings.get('options', {})
-        self.mappings, self.tags = self._dicom_names_to_tags(settings.get('mappings', {}))
-        self.cases = self._define_cases(settings.get('archive', {}))
-
-
-    @staticmethod
-    def _define_cases(archive: List[Dict]) -> List[Dicom2MHACase]:
-        cases = {}
-        for item in archive:
-
-
-
-    @staticmethod
-    def _dicom_names_to_tags(mappings: Dict) -> Tuple[Dict, Set]:
-        from picai_prep.utilities import dicom_tags
-
-        tags = set()
-        for name, mapping in mappings.items():
-            map = dict()
-            for key, value in mapping.items():
-                try:
-                    metadata = dicom_tags[lower_strip(key)]
-                    tags.add(metadata)
-
-                    if len(value) == 0 or any(type(v) is not str for v in value):
-                        raise ValueError(f"Non-string elements found in {name}/{key} mapping")
-
-                    map[metadata] = [lower_strip(v) for v in value]
-                except KeyError:
-                    raise KeyError(f"Invalid key '{key}' in '{name}' mapping, see metadata.json for valid keys.")
-            mappings[name] = map
-        return mappings, tags
-
 
 
 class ArchiveConverter(ABC):
