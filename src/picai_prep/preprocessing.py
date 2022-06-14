@@ -362,7 +362,7 @@ class Sample:
 def resample_to_reference_scan(
     image: "Union[npt.NDArray[Any], sitk.Image]",
     reference_scan_original: sitk.Image,
-    reference_scan_preprocessed: Optional[sitk.Image],
+    reference_scan_preprocessed: Optional[sitk.Image] = None,
     interpolator: sitk.ResampleImageFilter = sitk.sitkLinear,
 ) -> sitk.Image:
     """
