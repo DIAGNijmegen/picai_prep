@@ -363,7 +363,7 @@ def resample_to_reference_scan(
     image: "Union[npt.NDArray[Any], sitk.Image]",
     reference_scan_original: sitk.Image,
     reference_scan_preprocessed: Optional[sitk.Image] = None,
-    interpolator: sitk.ResampleImageFilter = sitk.sitkLinear,
+    interpolator: Optional[sitk.ResampleImageFilter] = None,
 ) -> sitk.Image:
     """
     Translate image/prediction/annotation to physical space of original scan (e.g., T2-weighted scan)
@@ -371,19 +371,29 @@ def resample_to_reference_scan(
     Parameters:
     - image: scan, detection map or (softmax) prediction
     - reference_scan_original: SimpleITK image to which the prediction should be resampled and resized
-    - reference_scan_preprocessed: SimpleITK image with physical metadata equal to `image`
-        (e.g., scan in nnUNet Raw Data Archive). Optional.
+    - reference_scan_preprocessed: (Optional) SimpleITK image with physical metadata for `image`
+        (e.g., scan in nnUNet Raw Data Archive). If not provided, `image` should be a SimpleITK image.
 
     Returns:
     - resampled image, in same physical space as reference_scan_original
     """
     # convert image to SimpleITK image and copy physical metadata
     if not isinstance(image, sitk.Image):
+        if reference_scan_preprocessed is None:
+            raise ValueError("Need SimpleITK Image or reference scan for phsyical metadata!")
         image: sitk.Image = sitk.GetImageFromArray(image)
-        assert reference_scan_preprocessed is not None, "Need reference scan for phsyical metadata!"
 
     if reference_scan_preprocessed is not None:
         image.CopyInformation(reference_scan_preprocessed)
+
+    if interpolator is None:
+        # determine interpolation method based on image dtype
+        if "integer" in image.GetPixelIDTypeAsString():
+            interpolator = sitk.sitkNearestNeighbor
+        elif "float" in image.GetPixelIDTypeAsString():
+            interpolator = sitk.sitkLinear
+        else:
+            raise ValueError(f"Unknown pixel type {image.GetPixelIDTypeAsString()}")
 
     # prepare resampling to original scan
     resampler = sitk.ResampleImageFilter()  # default linear
