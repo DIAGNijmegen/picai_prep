@@ -34,11 +34,15 @@ class PreprocessingSettings():
     - matrix_size: number of voxels output image (z, y, x)
     - spacing: output voxel spacing in mm/voxel (z, y, x)
     - physical_size: size in mm of the target image (z, y, x)
+    - max_matrix_size: maximum number of voxels output image (z, y, x) (will only crop, not pad)
+    - max_physical_size: maximum size in mm of the target image (z, y, x) (will only crop, not pad)
     - align_segmentation: whether to align the scans using the centroid of the provided segmentation
     """
     matrix_size: Optional[Iterable[int]] = None
     spacing: Optional[Iterable[float]] = None
     physical_size: Optional[Iterable[float]] = None
+    max_matrix_size: Optional[Iterable[int]] = None
+    max_physical_size: Optional[Iterable[float]] = None
     align_segmentation: Optional[sitk.Image] = None
 
     def __post_init__(self):
@@ -61,6 +65,14 @@ class PreprocessingSettings():
                     self.matrix_size
                 )
             ]
+
+        if self.max_matrix_size is not None:
+            if self.matrix_size is not None:
+                raise ValueError("matrix_size may not be set if max_matrix_size is set")
+
+        if self.max_physical_size is not None:
+            if self.physical_size is not None:
+                raise ValueError("physical_size may not be set if max_physical_size is set")
 
         if self.align_segmentation is not None:
             raise NotImplementedError("Alignment of scans based on segmentation is not implemented yet.")
@@ -305,15 +317,33 @@ class Sample:
         if self.lbl is not None:
             self.lbl = resample_img(self.lbl, out_spacing=spacing, is_label=True)
 
-    def centre_crop(self):
-        """Centre crop scans and label"""
+    def centre_crop_or_pad(self):
+        """Centre crop adn/or pad scans and label"""
+        kwargs = {
+            "size": self.settings.matrix_size,
+            "physical_size": self.settings.physical_size
+        }
         self.scans = [
-            crop_or_pad(scan, size=self.settings.matrix_size, physical_size=self.settings.physical_size)
+            crop_or_pad(scan, **kwargs)
             for scan in self.scans
         ]
 
         if self.lbl is not None:
-            self.lbl = crop_or_pad(self.lbl, size=self.settings.matrix_size)
+            self.lbl = crop_or_pad(self.lbl, **kwargs)
+
+    def centre_crop(self):
+        """Centre crop (but not pad) scans and label"""
+        kwargs = {
+            "size": self.settings.max_matrix_size,
+            "physical_size": self.settings.max_physical_size
+        }
+        self.scans = [
+            crop(scan, **kwargs)
+            for scan in self.scans
+        ]
+
+        if self.lbl is not None:
+            self.lbl = crop(self.lbl, **kwargs)
 
     def align_physical_metadata(self, check_almost_equal=True):
         """Align the origin and direction of each scan, and label"""
@@ -357,7 +387,11 @@ class Sample:
             self.resample_spacing()
 
         if self.settings.matrix_size is not None or self.settings.physical_size is not None:
-            # perform centre crop
+            # perform centre crop and/or pad
+            self.centre_crop_or_pad()
+
+        if self.settings.max_matrix_size is not None or self.settings.max_physical_size is not None:
+            # perform centre crop (but not pad)
             self.centre_crop()
 
         # resample scans and label to first scan's spacing, field-of-view, etc.

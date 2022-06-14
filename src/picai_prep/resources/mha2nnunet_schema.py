@@ -38,18 +38,30 @@ mha2nnunet_schema = {
             "type": "object",
             "description": "Preprocessing parameters",
             "properties": {
+                # preprocess to fixed size (specify at least two),
+                # or preprocess to variable size (specify only one)
                 "physical_size": {
                     "description": "Target field-of-view in mm (z, y, x). Automatically calculated if `matrix_size` and `spacing` are set.",
                     "$ref": "#/$defs/3d"
                 },
                 "matrix_size": {
-                    "description": "Target matrix size. Automatically calculated if `physical_size` and `spacing` are set.",
+                    "description": "Target matrix size in voxels (z, y, x). Automatically calculated if `physical_size` and `spacing` are set.",
                     "$ref": "#/$defs/3d"
                 },
                 "spacing": {
                     "description": "Target resolution in mm/voxel (z, y, x). Automatically calculated if `physical_size` and `matrix_size` are set.",
                     "$ref": "#/$defs/3d"
-                }
+                },
+
+                # preprocess to at most specified size
+                "max_physical_size": {
+                    "description": "Maximum field-of-view in mm (z, y, x).",
+                    "$ref": "#/$defs/3d"
+                },
+                "max_matrix_size": {
+                    "description": "Maximum matrix size in voxels (z, y, x).",
+                    "$ref": "#/$defs/3d"
+                },
             },
             "additionalProperties": False
         },
