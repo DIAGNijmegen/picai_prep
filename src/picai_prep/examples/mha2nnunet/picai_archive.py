@@ -25,6 +25,7 @@ def generate_mha2nnunet_settings(
     archive_dir: PathLike,
     output_path: PathLike,
     annotations_dir: Optional[PathLike] = None,
+    task: str = "Task2201_picai_baseline",
 ):
     """
     Create mha2nnunet_settings.json (for inference) for an MHA archive with the following structure:
@@ -92,7 +93,7 @@ def generate_mha2nnunet_settings(
 
     mha2nnunet_settings = {
         "dataset_json": {
-            "task": "Task2201_picai_baseline",
+            "task": task,
             "description": "bpMRI scans from PI-CAI dataset to train nnUNet baseline",
             "tensorImageSize": "4D",
             "reference": "",
