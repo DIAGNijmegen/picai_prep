@@ -25,6 +25,7 @@ def generate_mha2nnunet_settings(
     archive_dir: PathLike,
     output_path: PathLike,
     annotations_dir: Optional[PathLike] = None,
+    task: str = "Task100_test",
 ):
     """
     Create mha2nnunet_settings.json (with annotations) for an MHA archive with the following structure:
@@ -95,7 +96,7 @@ def generate_mha2nnunet_settings(
 
     mha2nnunet_settings = {
         "dataset_json": {
-            "task": "Task100_test",
+            "task": task,
             "description": "bpMRI scans from ProstateX dataset to test mha2nnunet",
             "tensorImageSize": "4D",
             "reference": "",
