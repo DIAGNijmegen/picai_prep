@@ -11,15 +11,15 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-
-
 import json
 import logging
 import os
+import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Set, Tuple, Union
+from datetime import datetime
+from typing import Callable, Dict, List, Optional, Set, Tuple, Union, Any
 
 import jsonschema
 import numpy as np
@@ -34,78 +34,9 @@ from picai_prep.utilities import (dcm2mha_schema, dicom_tags,
                                   make_sitk_readers, metadata_defaults, plural)
 
 
-@dataclass
-class Series:
-    path: Path
-    patient_id: str
-    study_id: str
-
-    # image metadata
-    filenames: Optional[List[str]] = None
-    resolution: Optional[np.ndarray] = None
-    metadata: Optional[Dict[str, str]] = None
-
-    _error: "Optional[SeriesException]" = None
-    _log: List[str] = field(default_factory=list)
-
-    @property
-    def is_valid(self):
-        return self.error is None
-
-    @property
-    def error(self) -> str:
-        return self._error.long_msg
-
-    @error.setter
-    def error(self, e: "SeriesException"):
-        if self.is_valid:
-            self.log(str(e))
-        self._error = e
-
-    def log(self, msg: str):
-        self._log.append(msg)
-
-    def verify_dicom_filenames(self, filenames: List[PathLike]) -> bool:
-        vdcms = [d.rsplit('.', 1)[0] for d in filenames]
-        vdcms = [int(''.join(c for c in d if c.isdigit())) for d in vdcms]
-        missing_slices = False
-        for num in range(min(vdcms), max(vdcms) + 1):
-            if num not in vdcms:
-                missing_slices = True
-        if missing_slices:
-            raise MissingDICOMFilesError(self.path)
-        return True
-
-    def extract_metadata(self, file_reader: sitk.ImageFileReader, filenames: List[PathLike]):
-        self.filenames = filenames
-        dicom_slice_path = os.path.join(self.path, filenames[-1])
-        metadata = dict()
-
-        try:
-            file_reader.SetFileName(dicom_slice_path)
-            file_reader.ReadImageInformation()
-            self.resolution = np.prod(file_reader.GetSpacing())
-            for key in dicom_tags:
-                metadata[key] = lower_strip(file_reader.GetMetaData(key)) if file_reader.HasMetaDataKey(key) else None
-            # extracting PatientID and StudyInstanceUID no longer performed as these are now required values
-        except Exception as e:
-            self.log(f"Reading with SimpleITK failed for {self.path} with {e}. Attempting with pydicom.")
-            try:
-                with pydicom.dcmread(dicom_slice_path) as data:
-                    self.resolution = np.prod(data.PixelSpacing)
-                    for key in dicom_tags:
-                        metadata[key] = lower_strip(get_pydicom_value(data, key))
-                    # extracting PatientID and StudyInstanceUID no longer performed as these are now required values
-            except pydicom.errors.InvalidDicomError:
-                raise UnreadableDICOMError(self.path)
-
-            self.metadata = metadata
-
-
 class SeriesException(Exception):
     """Base Exception for errors in an item (series within a case)"""
     def __init__(self, message: str):
-        logging.error(message)
         super().__init__(message)
 
 
@@ -113,6 +44,11 @@ class MissingDICOMFilesError(SeriesException):
     """Exception raised when a DICOM series has missing DICOM slices"""
     def __init__(self, path: PathLike):
         super().__init__(f"Missing DICOM slices detected in {path}")
+
+class NoMappingsApplyError(SeriesException):
+    """Exception raised when no mappings apply to the case"""
+    def __init__(self):
+        super().__init__('None of the provided mappings apply to this item')
 
 
 class UnreadableDICOMError(SeriesException):
@@ -127,11 +63,105 @@ class ArchiveItemPathNotFoundError(SeriesException):
         super().__init__(f"Provided archive item path not found ({path})")
 
 
+class Dicom2MHASettings:
+    def __init__(self, mappings: Dict[str, Dict], options: Dict):
+        from picai_prep.utilities import dicom_tags
+
+        self.tags = dict()
+        for name, mapping in mappings.items():
+            map = dict()
+            for key, values in mapping.items():
+                l_key = lower_strip(key)
+                try:
+                    self.tags[l_key] = dicom_tags[l_key]
+
+                    if len(values) == 0 or any(type(v) is not str for v in values):
+                        raise ValueError(f"Invalid non-string elements found in {name}/{key} mapping")
+
+                    map[l_key] = [lower_strip(v) for v in values]
+                except KeyError:
+                    raise KeyError(f"Invalid key '{l_key}' in '{name}' mapping, see metadata.json for valid keys.")
+            mappings[name] = map
+        self.mappings = mappings
+        self._options = options
+
+    @property
+    def num_threads(self):
+        return self._options.get('num_threads', 4)
+
+    @property
+    def verify_dicom_filenames(self):
+        return self._options.get('verify_dicom_filenames', True)
+
+    @property
+    def allow_duplicates(self):
+        return self._options.get('allow_duplicates', False)
+
+
 @dataclass
-class Dicom2MHASeries(Series):
-    # dcm2mha specific attributes
-    dicom_paths: Optional[List[PathLike]] = None
-    mappings: Optional[List[str]] = None
+class Series:
+    path: Path
+    patient_id: str
+    study_id: str
+
+    # image metadata
+    filenames: Optional[List[str]] = None
+    resolution: Optional[np.ndarray] = None
+    metadata: Optional[Dict[str, str]] = field(default_factory=dict)
+
+    mappings: List[str] = field(default_factory=list)
+
+    log: List[str] = field(default_factory=list)
+    _error: Optional[Exception] = None
+
+    @property
+    def is_valid(self):
+        return self._error is None
+
+    @property
+    def error(self) -> str:
+        return f'{type(self._error).__name__}: {str(self._error)}'
+
+    @error.setter
+    def error(self, e: Exception):
+        self._error = e
+        self.write_log(self.error)
+
+    def write_log(self, msg: str):
+        self.log.append(msg)
+
+    def verify_dicom_filenames(self, filenames: List[PathLike]) -> bool:
+        vdcms = [d.rsplit('.', 1)[0] for d in filenames]
+        vdcms = [int(''.join(c for c in d if c.isdigit())) for d in vdcms]
+        missing_slices = False
+        for num in range(min(vdcms), max(vdcms) + 1):
+            if num not in vdcms:
+                missing_slices = True
+        if missing_slices:
+            raise MissingDICOMFilesError(self.path)
+        return True
+
+    def extract_metadata(self, file_reader: sitk.ImageFileReader, filenames: List[PathLike], tags: Dict[str, str]):
+        self.filenames = filenames
+        dicom_slice_path = os.path.join(self.path, filenames[-1])
+
+        try:
+            file_reader.SetFileName(dicom_slice_path)
+            file_reader.ReadImageInformation()
+            self.resolution = np.prod(file_reader.GetSpacing())
+            for name, id in tags.items():
+                self.metadata[name] = lower_strip(file_reader.GetMetaData(id) if file_reader.HasMetaDataKey(id) else '')
+            # extracting PatientID and StudyInstanceUID no longer performed as these are now required values
+        except Exception as e:
+            self.write_log(f"Reading with SimpleITK failed for {self.path} with error: {e}. Attempting with pydicom.")
+            try:
+                with pydicom.dcmread(dicom_slice_path) as data:
+                    self.resolution = np.prod(data.PixelSpacing)
+                    for name, id in tags.items():
+                        self.metadata[name] = lower_strip(get_pydicom_value(data, id))
+                    # extracting PatientID and StudyInstanceUID no longer performed as these are now required values
+            except pydicom.errors.InvalidDicomError:
+                raise UnreadableDICOMError(self.path)
 
 
 class Case:
@@ -139,56 +169,176 @@ class Case:
 
 
 class Dicom2MHACase(Case):
+    settings: Dicom2MHASettings = Dicom2MHASettings({}, {})
+
     def __init__(self, input_dir: Path, patient_id: str, study_id: str, paths: List[PathLike]):
         self.patient_id = patient_id
         self.study_id = study_id
-        self.items: List[Series] = []
+        self.series: List[Series] = []
+        self.log = []
+
         fullpaths = set()
         for path in paths:
             full_path = input_dir / path
-            item = Dicom2MHASeries(full_path, patient_id, study_id)
+            serie = Series(full_path, patient_id, study_id)
             try:
                 if not full_path.exists():
                     raise ArchiveItemPathNotFoundError(path)
                 elif not full_path.is_dir():
                     raise NotADirectoryError(path)
                 elif path in fullpaths:
-                    raise SeriesError(item, f"Provided archive item path already exists ({path})", 'path already exists')
-            except SeriesException as e:
-                # log error and continue
-                # TODO: log error (use str(e) for human readable error)
-                continue
+                    raise FileExistsError(path)
+            except Exception as e:
+                serie.error = e
+                logging.error(str(e))
             else:
                 fullpaths.add(full_path)
             finally:
-                self.items.append(item)
-        if self.has_invalid_items():
+                self.log.append(f'+ ({len(self.series)}) {full_path}')
+                self.series.append(serie)
+        if not all([serie.is_valid for serie in self.series]):
             self.invalidate()
 
     @property
-    def valid_items(self):
-        return [item for item in self.items if item.is_valid]
-
-    def has_invalid_items(self):
-        return not all([item.is_valid for item in self.items])
+    def valid_series(self):
+        return [item for item in self.series if item.is_valid]
 
     def invalidate(self):
-        for item in self.valid_items:
-            item.error = SeriesError(item, "invalidated due to critical error in sibling", "invalidated")
+        for serie in self.valid_series:
+            serie.error = SeriesException('Invalidated due to critical error in sibling')
 
-    def extract_metadata(self, verify_dicom_filenames: bool = True):
+    def write_log(self, msg: str):
+        self.log.append(msg)
+
+    def convert(self, *args):
+        output_dir, = args
+        self.extract_metadata()
+        self.apply_mappings()
+        if not self.settings.allow_duplicates:
+            self.resolve_duplicates()
+        self.process_and_write(output_dir)
+
+        divider = '=' * 120
+        log = [divider, f'CASE {self.patient_id}_{self.study_id} ({len(self.series)} series)\n'] + self.log + ['']
+        for i, serie in enumerate(self.series):
+            log.extend([f'\t{i}: {serie.path.as_posix()}'] +
+                       [f'\t\t{l}' for l in serie.log] +
+                       ['\t\tFATAL ERROR\n'] if serie.error else ['\n'])
+        return '\n'.join(log + ['\n'])
+
+    def extract_metadata(self):
+        vseries = len(self.valid_series)
+        self.log.append(f'Extracting metadata from {vseries} series')
+
         file_reader, series_reader = make_sitk_readers()
-        for item in self.valid_items:
-            dicom_filenames = [os.path.basename(dcm) for dcm in series_reader.GetGDCMSeriesFileNames(item.path)]
+        for serie in self.valid_series:
+            try:
+                dicom_filenames = [os.path.basename(dcm) for dcm in series_reader.GetGDCMSeriesFileNames(serie.path.as_posix())]
 
-            # verify DICOM files are found
-            if len(dicom_filenames) == 0:
-                raise SeriesError(item, f"No DICOM data found at {item.path}", "missing DICOM data")
+                # verify DICOM files are found
+                if len(dicom_filenames) == 0:
+                    raise MissingDICOMFilesError(serie.path)
 
-            if verify_dicom_filenames:
-                item.verify_dicom_filenames(dicom_filenames)
+                if self.settings.verify_dicom_filenames:
+                    serie.verify_dicom_filenames(dicom_filenames)
 
-            item.extract_metadata(file_reader, dicom_filenames)
+                serie.extract_metadata(file_reader, dicom_filenames, self.settings.tags)
+                serie.write_log('Extracted metadata.')
+            except (MissingDICOMFilesError, UnreadableDICOMError) as e:
+                serie.error = e
+
+        self.log.append(f'\t({vseries - len(self.valid_series)} errors)')
+
+    def apply_mappings(self):
+        vseries = len(self.valid_series)
+        self.write_log(f'Applying mappings to {vseries} series')
+
+        for serie in self.valid_series:
+            try:
+                for name, mapping in Dicom2MHACase.settings.mappings.items():
+                    for key, values in mapping.items():
+                        if any(v == serie.metadata[key] for v in values):
+                            serie.mappings.append(name)
+
+                if len(serie.mappings) == 0:
+                    raise NoMappingsApplyError()
+                serie.write_log(f'Applied mappings ({", ".join(serie.mappings)}).')
+            except NoMappingsApplyError as e:
+                serie.error = e
+
+        self.write_log(f'\t({vseries - len(self.valid_series)} errors)')
+
+    def resolve_duplicates(self):
+        self.write_log(f'Resolving duplicates between {len(self.valid_series)} series')
+
+        vseries = self.valid_series
+        duplicates: Dict[str, List[int]] = dict()
+        R = random.Random()
+
+        # value_func, largest, msg = tiebreaker
+        tiebreaker_slice_count = ('slice count', lambda a: len(a.filenames), True)
+        tiebreaker_image_resolution = ('image resolution', lambda a: a.resolution, False)
+
+        # create dict collecting all items for each mapping
+        for i, serie in enumerate(vseries):
+            for mapping in serie.mappings:
+                duplicates[mapping] = duplicates.get(mapping, []) + [i]
+
+        for mapping, group in duplicates.items():
+            for tiebreaker in [tiebreaker_slice_count, tiebreaker_image_resolution]:
+                if len(group) > 1:
+                    name, value_func, largest = tiebreaker
+                    competitors = [(i, value_func(vseries[i])) for i in group]
+                    competitors.sort(key=lambda a: a[1], reverse=largest)
+                    best_i, best_v = competitors[0]
+
+                    for i, v in competitors:
+                        if best_v != v:
+                            vseries[i].mappings.remove(mapping)
+                            vseries[i].write_log(f'removed by {name} tiebreaker from "{mapping}"')
+                            group.remove(i)
+
+            # after tiebreakers there are still candidates, select at random
+            if len(group) > 1:
+                r = R.randint(0, len(group))
+                for i in group:
+                    if i != r:
+                        vseries[i].mappings.remove(mapping)
+                        vseries[i].write_log(f'removed by random selection from "{mapping}"')
+
+    def process_and_write(self, output_dir: Path):
+        total = sum([len(serie.mappings) for serie in self.valid_series])
+        self.write_log(f'Writing {total} series')
+        writes, skips = 0, 0
+
+        dir = output_dir / self.patient_id
+        for serie in self.valid_series:
+            for mapping in serie.mappings:
+                destination = (dir / '_'.join([self.patient_id, self.study_id, mapping])).with_suffix('.mha')
+                if destination.exists():
+                    serie.write_log(f'Skipped "{mapping}", already exists: {destination}')
+                    skips += 1
+
+                try:
+                    image = read_image_series(serie.path)
+                except Exception as e:
+                    serie.write_log(f'Skipped "{mapping}", reading DICOM sequence failed, maybe corrupt data? Error: {e}')
+                    logging.error(str(e))
+                    raise e
+                else:
+                    # temporarily commented out
+                    # if self.scan_postprocess_func is not None:
+                    #     image = self.scan_postprocess_func(image)
+                    try:
+                        atomic_image_write(image=image, path=destination, mkdir=True)
+                    except Exception as e:
+                        serie.write_log(f'Skipped "{mapping}", write error: {e}')
+                        logging.error(str(e))
+                        raise e
+                writes += 1
+
+        self.write_log(f'Wrote {writes} MHA files to {dir.as_posix()}\n'
+                       f'\t({total - writes - skips} errors, {skips} skipped)')
 
 
 class Dicom2MHAConverter:
@@ -202,19 +352,14 @@ class Dicom2MHAConverter:
         from picai_prep.utilities import dcm2mha_schema
         jsonschema.validate(dcm2mha_settings, dcm2mha_schema, cls=jsonschema.Draft7Validator)
 
-        self.options = dcm2mha_settings.get('options', {})
-        self.mappings, self.tags = self._dicom_names_to_tags(dcm2mha_settings.get('mappings', {}))
-        self.cases = self._define_cases(dcm2mha_settings.get('archive', {}))
+        self.settings = Dicom2MHASettings(dcm2mha_settings.get('mappings', {}), dcm2mha_settings.get('options', {}))
+        self.cases = self._init_cases(dcm2mha_settings.get('archive', {}))
 
-    @property
-    def num_threads(self):
-        return self.options.get('num_threads', 4)
+        logfile = self.output_dir / f'picai_prep_{datetime.now().strftime("%Y%m%d%H%M%S")}.log'
+        logging.basicConfig(filemode='w', level=logging.INFO, format='%(message)s', filename=logfile)
+        logging.info(f'Output directory set to {self.output_dir.absolute().as_posix()}, writing log to {logfile}')
 
-    @property
-    def verify_dicom_filenames(self):
-        return self.options.get('verify_dicom_filenames', True)
-
-    def _define_cases(self, archive: List[Dict]) -> List[Dicom2MHACase]:
+    def _init_cases(self, archive: List[Dict]) -> List[Dicom2MHACase]:
         cases = {}
         for item in archive:
             key = tuple(item[id] for id in metadata_defaults.keys())  # (patient_id, study_id)
@@ -222,390 +367,21 @@ class Dicom2MHAConverter:
         return [Dicom2MHACase(self.input_dir, patient_id, study_id, paths) for (patient_id, study_id), paths in
                 cases.items()]
 
-    @staticmethod
-    def _dicom_names_to_tags(mappings: Dict) -> Tuple[Dict, Set]:
-        from picai_prep.utilities import dicom_tags
-
-        tags = set()
-        for name, mapping in mappings.items():
-            map = dict()
-            for key, value in mapping.items():
-                try:
-                    metadata = dicom_tags[lower_strip(key)]
-                    tags.add(metadata)
-
-                    if len(value) == 0 or any(type(v) is not str for v in value):
-                        raise ValueError(f"Non-string elements found in {name}/{key} mapping")
-
-                    map[metadata] = [lower_strip(v) for v in value]
-                except KeyError:
-                    raise KeyError(f"Invalid key '{key}' in '{name}' mapping, see metadata.json for valid keys.")
-            mappings[name] = map
-        return mappings, tags
-
     def convert(self):
-        with ThreadPoolExecutor(max_workers=self.num_threads) as pool:
-            futures = {pool.submit(case.extract_metadata, case): (case, self.tags, self.verify_dicom_filenames) for case in self.cases}
+        start_time = datetime.now()
+        logging.info(f'Program started at {start_time.isoformat()}\n')
+
+        Dicom2MHACase.settings = self.settings
+        with ThreadPoolExecutor(max_workers=self.settings.num_threads) as pool:
+            futures = {pool.submit(case.convert, self.output_dir): case for case in self.cases}
             for future in tqdm(as_completed(futures), total=len(self.cases)):
-                future.result()
-            for case in self.cases:
-                case._extract_metadata()
-                # ...
+                case_log = future.result()
+                logging.info(case_log)
 
 
-class Dicom2MHAConverter(ArchiveConverter):
-    def __init__(
-        self,
-        input_path: PathLike,
-        output_path: PathLike,
-        settings_path: PathLike,
-        verify_dicom_filenames: bool = True,
-        scan_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None,
-        num_threads: int = 4,
-        silent=False
-    ):
-        """
-        Converts DICOM files into MHA files with respect to a given mapping
-
-        Parameters:
-        - input_path: Root directory for input, e.g. /path/to/archive/
-        - output_path: Root directory for output
-        - settings_path: Path to JSON mappings file
-        - silent: Control level of logging
-        """
-        super().__init__(
-            input_path=input_path,
-            output_path=output_path,
-            num_threads=num_threads,
-            silent=silent
-        )
-
-        # store parameters
-        self.verify_dicom_filenames = verify_dicom_filenames
-        self.scan_postprocess_func = scan_postprocess_func
-
-        # read and verify conversion settings
-        with open(settings_path) as fp:
-            self.settings = json.load(fp)
-        jsonschema.validate(self.settings, dcm2mha_schema, cls=jsonschema.Draft7Validator)
-
-        # collect relevant metadata to extract (predefined StudyInstanceUID and PatientID)
-        self.metadata = set()
-        self.mappings = dict()
-        for name, mapping in self.settings['mappings'].items():
-            tech_mapping = dict()
-            for key, value in mapping.items():
-                try:
-                    tech = dicom_tags[lower_strip(key)]
-                    self.metadata.add(tech)
-
-                    if len(value) == 0 or any(type(v) is not str for v in value):
-                        raise ValueError(f"Non-string elements found in {name}/{key} mapping")
-
-                    tech_mapping[tech] = [lower_strip(v) for v in value]
-                except KeyError:
-                    print(f"Invalid key '{key}' in '{name}' mapping, see metadata.json for valid keys.")
-            self.mappings[name] = tech_mapping
-
-        self.next_history()  # create initial history step with no errors
-        self.next_history()  # working history
-
-    def _check_archive_paths(self):
-        """
-        Check that all input paths are valid
-        """
-        sources = set()
-        for a in tqdm(self.settings['archive'], desc="Checking archive paths"):
-            item = {id: a.get(id, None) for id in metadata_defaults.keys()}
-            self.items.append(item)
-            source = os.path.abspath(os.path.join(self.input_dir, a['path']))
-            item['source'] = source
-
-            if not os.path.exists(source):
-                item['error'] = (f"Provided archive item path not found ({source})", 'path not found')
-            elif not os.path.isdir(source):
-                item['error'] = (f"Provided archive item path is not a directory ({source})", 'path not a directory')
-            elif source in sources:
-                item['error'] = (f"Provided archive item path already exists ({source})", 'path already exists')
-            sources.add(source)
-
-        for item in self.items:  # add errors retroactively
-            if 'error' in item:
-                error, log = item['error']
-                item['error'] = error
-                self.item_log(item, log)
-
-        # report number of valid items after adding errors
-        self.info("Provided dcm2mha archive is valid.", self.get_history_report())
-
-    def _extract_metadata_function(self, item):
-        file_reader, series_reader = make_sitk_readers()
-        dicom_filenames = [os.path.basename(dcm) for dcm in series_reader.GetGDCMSeriesFileNames(item['source'])]
-
-        # verify DICOM files were found
-        if len(dicom_filenames) == 0:
-            item['error'] = f"No DICOM data found at {item['source']}"
-            self.item_log(item, "missing DICOM data")
-            return
-
-        if self.verify_dicom_filenames:
-            # verify DICOM filenames have slice numbers that go from a to z
-            vdcms = [d.rsplit('.', 1)[0] for d in dicom_filenames]
-            vdcms = [int(''.join(c for c in d if c.isdigit())) for d in vdcms]
-            missing_slices = False
-            for num in range(min(vdcms), max(vdcms) + 1):
-                if num not in vdcms:
-                    missing_slices = True
-            if missing_slices:
-                item['error'] = f"Missing DICOM slices detected in {item['source']}"
-                self.item_log(item, "missing DICOM slices")
-                return
-
-        dicom_slice_path = os.path.join(item['source'], dicom_filenames[-1])
-        metadata = dict()
-
-        try:
-            # extract metadata
-            file_reader.SetFileName(dicom_slice_path)
-            file_reader.ReadImageInformation()
-            item['resolution'] = np.prod(file_reader.GetSpacing())
-            for key in self.metadata:
-                metadata[key] = lower_strip(file_reader.GetMetaData(key)) if file_reader.HasMetaDataKey(key) else None
-
-            # extract PatientID and StudyInstanceUID if not set
-            for id, value in metadata_defaults.items():
-                if item[id] is None:
-                    if file_reader.HasMetaDataKey(value['key']):
-                        item[id] = lower_strip(file_reader.GetMetaData(value['key']))
-                    else:
-                        item['error'] = value['error']
-                        self.item_log(item, 'metadata key error')
-                        continue
-        except Exception as e:
-            print(f"Reading with SimpleITK failed for {item['source']} with {e}. Trying with pydicom now.")
-            try:
-                with pydicom.dcmread(dicom_slice_path) as d:
-                    # extract metadata
-                    item['resolution'] = np.prod(d.PixelSpacing)
-                    for key in self.metadata:
-                        metadata[key] = lower_strip(get_pydicom_value(d, key))
-
-                    # extract PatientID and StudyInstanceUID if not set
-                    for id, value in metadata_defaults.items():
-                        if item[id] is None:
-                            item[id] = lower_strip(get_pydicom_value(d, value['key']))
-                            if item[id] is None:
-                                item['error'] = value['error']
-                                self.item_log(item, 'metadata key error')
-                                continue
-
-            except pydicom.errors.InvalidDicomError:
-                item['error'] = 'Could not open using either SimpleITK or pydicom'
-                self.item_log(item, 'corrupted DICOM file')
-                return
-
-        item['metadata'] = metadata
-        item['dcms'] = dicom_filenames
-
-    def _extract_metadata(self):
-        """
-        Collect all dicom files in each item
-        """
-        self.info(f"Extracting metadata from {self.valid_items_str()}.")
-
-        total = 0
-        with ThreadPoolExecutor(max_workers=self.num_threads) as pool:
-            futures = {pool.submit(self._extract_metadata_function, item): item for item in self.valid_items}
-            for future in tqdm(as_completed(futures), total=self.num_valid_items):
-                item = futures[future]
-                try:
-                    future.result()
-                except Exception as e:
-                    item['error'] = f'Unexpected error: {e}'
-                    self.item_log(item, 'unexpected error')
-                else:
-                    total += (len(item['dcms']) if 'dcms' in item else 0)
-
-        self.info(f"Collected {plural(total, 'DICOM file')} from {self.valid_items_str()}.", self.get_history_report())
-
-    @staticmethod
-    def maps_to(mapping, metadata):
-        """metadata maps to 'mapping' if any value in each key match"""
-        for key, values in mapping.items():
-            if not any(v == metadata[key] for v in values):
-                return False
-        return True
-
-    def _apply_mappings(self):
-        self.info(f"Applying mappings to {self.valid_items_str()} using extracted metadata.")
-
-        total = 0
-        for item in self.valid_items:
-            item['mappings'] = []
-            for name, mapping in self.mappings.items():
-                if self.maps_to(mapping, item['metadata']):
-                    item['mappings'].append(name)
-                    total += 1
-
-            if len(item['mappings']) == 0:
-                item['error'] = 'None of the provided mappings apply to this item'
-                self.item_log(item, 'no matching mapping')
-                continue
-
-        self.info(f"Mapped {self.valid_items_str()}, totalling {plural(total, 'mapping')}.", self.get_history_report())
-
-    def _resolve_duplicates(self):
-        self.info("Setting MHA conversion target paths, then resolving duplicate paths through tiebreaker strategies.")
-
-        items = list(self.valid_items)
-        duplicates = dict()
-
-        tiebreakers = [
-            {
-                'extract': lambda a: len(items[a]['dcms']),
-                'reverse': True,
-                'error_key': 'tiebreaker (slice count)',
-                'error': 'Not selected from duplicate pool due to slice count tiebreaker'
-            },
-            {
-                'extract': lambda a: items[a]['resolution'],
-                'reverse': False,
-                'error_key': 'tiebreaker (image resolution)',
-                'error': 'Not selected from duplicate pool due to image resolution tiebreaker'
-            },
-        ]
-
-        # set targets, then resolve duplicates
-        target_count = 0
-        for i, item in enumerate(items):
-            targets = ["_".join([item[key] for key in metadata_defaults.keys()] + [map]) for map in item['mappings']]
-            item['targets'] = dict()
-            for target in targets:
-                item['targets'][target] = None  # denotes target error status, None = OK
-                duplicates[target] = duplicates.get(target, []) + [i]
-                target_count += 1
-
-        # remove targets from duplicates that do not win their tiebreakers
-        remove_c = 0
-        for target, dups in filter(lambda a: len(a) > 1, duplicates.items()):
-            # index, [extractions]
-            dups = [(tuple([d] + [tb['extract'](d) for tb in tiebreakers])) for d in dups]
-            for i, tb in enumerate(tiebreakers):
-                i += 1
-                # sort duplicates by 'extract' in 'reverse' order
-                dups.sort(key=lambda a: a[i], reverse=tb['reverse'])
-                best = dups[0]
-                # duplicates which cannot compete with best are removed
-                for d in dups:
-                    if d[i] != best[i]:
-                        dups.remove(d)
-                        item = items[d[0]]
-                        item['targets'][target] = tb['error']
-                        self.item_log(item, tb['error_key'])
-                        remove_c += 1
-            for d in dups[1:]:
-                item = items[d[0]]
-                item['targets'][target] = 'Not selected from duplicate pool due to final randomizing tiebreaker'
-                self.item_log(item, 'tiebreaker (random)')
-                remove_c += 1
-
-        # if target is still None, it is selected. otherwise, the reason for deselection is stated
-        self.info(f"Selected {plural(target_count, 'target')}, removed {remove_c} by tiebreaker.", self.get_history_report())
-
-    def _convert_function(self, args) -> bool:
-        item, target, destination = args
-        # the series is already verified in an earlier step
-        try:
-            image = read_image_series(item['source'])
-        except Exception as e:
-            item['targets'][target] = f'Reading DICOM sequence failed, maybe corrupt data? Error: {e}'
-            self.item_log(item, 'corrupt data')
-            return False
-
-        if self.scan_postprocess_func is not None:
-            image = self.scan_postprocess_func(image)
-
-        try:
-            atomic_image_write(image=image, path=destination, mkdir=True)
-        except Exception as e:
-            item['targets'][target] = f'Error during writing: {e}'
-            self.item_log(item, 'write error')
-            return False
-        return True
-
-    def _convert(self):
-        convert_count = 0
-        for item in self.valid_items:
-            for _, status in item['targets'].items():
-                convert_count += 1 if status is None else 0
-
-        self.info(f"Converting {convert_count} DICOM series to MHA.")
-
-        # convert all items with valid targets to mha
-        success_count, skip_count = 0, 0
-        targets = []
-        for item in self.valid_items:
-            for target, status in item['targets'].items():
-                if status is None:  # therefore selected
-                    destination = os.path.join(self.output_dir, item['patient_id'], target + '.mha')
-                    if os.path.exists(destination):
-                        item['targets'][target] = 'Skipped, target output path already exists'
-                        self.item_log(item, 'skipped')
-                        skip_count += 1
-                    else:
-                        targets.append((item, target, destination))
-
-        with ThreadPoolExecutor(max_workers=self.num_threads) as pool:
-            futures = {pool.submit(self._convert_function, args): args for args in targets}
-            for future in tqdm(as_completed(futures), total=len(targets)):
-                item, target, _ = futures[future]
-                try:
-                    success = future.result()
-                except Exception as e:
-                    item['targets'][target] = f'Unexpected error: {e}'
-                    self.item_log(item, 'unexpected error')
-                else:
-                    success_count += 1 if success else 0
-
-        self.info(f"{success_count} converted successfully.", self.get_history_report())
-
-    def convert(self):
-        for step in [
-            self._check_archive_paths,
-            self._extract_metadata,
-            self._apply_mappings,
-            self._resolve_duplicates,
-            self._convert
-        ]:
-            if self.has_valid_items or step == self._check_archive_paths:
-                step()
-                self.next_history()
-            else:
-                self.info("Aborted conversion, no items to convert.")
-                return
-
-        self.complete()
-
-    def item_log_value(self, item):
-        lpad = ' ' * (len(str(len(self.items))) + 1)
-
-        if 'error' in item:
-            result = f"{lpad}{item['error']}"
-        elif 'targets' in item:
-            result = []
-            for target, status in item['targets'].items():
-                result.append(f"{lpad}{target} --> {'OK' if status is None else status}")
-            result = '\n'.join(result)
-        else:
-            return None
-
-        return f"{str(self.items.index(item)).zfill(len(lpad))} {item['patient_id']}/{item['study_id']}\n" \
-               f"\t{result}"
-
-
-def read_image_series(image_series_path):
+def read_image_series(image_series_path: Path):
     file_reader, series_reader = make_sitk_readers()
-    dicom_slice_paths = series_reader.GetGDCMSeriesFileNames(image_series_path)
+    dicom_slice_paths = series_reader.GetGDCMSeriesFileNames(image_series_path.as_posix())
 
     try:
         series_reader.SetFileNames(dicom_slice_paths)

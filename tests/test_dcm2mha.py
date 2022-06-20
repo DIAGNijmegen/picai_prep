@@ -35,9 +35,9 @@ def test_dcm2mha(
 
     # test usage from command line
     archive = Dicom2MHAConverter(
-        input_path=input_dir,
-        output_path=output_dir,
-        settings_path="tests/output-expected/dcm2mha_settings.json"
+        input_dir=input_dir,
+        output_dir=output_dir,
+        dcm2mha_settings="tests/output-expected/dcm2mha_settings.json"
     )
     archive.convert()
 

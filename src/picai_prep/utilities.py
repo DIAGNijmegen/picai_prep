@@ -31,7 +31,7 @@ def plural(v: int, s: str):
     return f"{v} {s}{'' if v == 1 else 's'}"
 
 
-def get_pydicom_value(data: pydicom.dataset.FileDataset, key: str):
+def get_pydicom_value(data: pydicom.dataset.Dataset, key: str):
     key = '0x' + key.replace('|', '')
     if key in data:
         result = data[key]
