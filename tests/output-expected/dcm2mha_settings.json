@@ -1,6 +1,6 @@
 {
     "options": {
-        "resolve_duplicates": false
+        "random_seed": 1
     },
     "mappings": {
         "t2w": {

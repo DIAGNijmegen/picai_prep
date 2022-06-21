@@ -23,7 +23,8 @@ from picai_prep.data_utils import PathLike
 
 def generate_dcm2mha_settings(
     archive_dir: PathLike,
-    output_path: PathLike
+    output_path: PathLike,
+    **kwargs
 ):
     """
     Create dcm2mha_settings.json for a DICOM archive with the following structure:
@@ -39,6 +40,7 @@ def generate_dcm2mha_settings(
     - archive_dir: path to DICOM archive
     - output_path: path to store DICOM->MHA settings JSON to
         (parent folder should exist)
+    - kwargs: extra options
     """
     ignore_files = [
         ".DS_Store",
@@ -76,6 +78,7 @@ def generate_dcm2mha_settings(
                 }]
 
     archive = {
+        "options": kwargs,
         "mappings": {
             "t2w": {
                 "SeriesDescription": [

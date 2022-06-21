@@ -14,6 +14,7 @@
 
 
 import os
+import random
 import shutil
 
 import SimpleITK as sitk
@@ -46,7 +47,7 @@ def test_dcm2mha(
         ("ProstateX-0000", "ProstateX-0000_07-07-2011"),
         ("ProstateX-0001", "ProstateX-0001_07-08-2011"),
     ]:
-        for modality in ["t2w", "adc", "hbv"]:
+        for modality in ["t2w", "adc", "hbv", "sag", "cor"]:
             # construct paths to MHA images
             path_out = os.path.join(output_dir, patient_id, f"{subject_id}_{modality}.mha")
             path_out_expected = os.path.join(output_expected_dir, patient_id, f"{subject_id}_{modality}.mha")

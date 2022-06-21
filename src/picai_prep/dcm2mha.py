@@ -97,6 +97,10 @@ class Dicom2MHASettings:
     def allow_duplicates(self):
         return self._options.get('allow_duplicates', False)
 
+    @property
+    def random_seed(self):
+        return self._options.get('random_seed', None)
+
 
 @dataclass
 class Series:
@@ -120,12 +124,11 @@ class Series:
 
     @property
     def error(self) -> str:
-        return f'{type(self._error).__name__}: {str(self._error)}'
+        return f'{type(self._error).__name__}: {str(self._error)}' if not self.is_valid else ''
 
     @error.setter
     def error(self, e: Exception):
         self._error = e
-        self.write_log(self.error)
 
     def write_log(self, msg: str):
         self.log.append(msg)
@@ -175,7 +178,7 @@ class Dicom2MHACase(Case):
         self.patient_id = patient_id
         self.study_id = study_id
         self.series: List[Series] = []
-        self.log = []
+        self.log = [f'Importing {plural(len(paths), "serie")}']
 
         fullpaths = set()
         for path in paths:
@@ -194,7 +197,7 @@ class Dicom2MHACase(Case):
             else:
                 fullpaths.add(full_path)
             finally:
-                self.log.append(f'+ ({len(self.series)}) {full_path}')
+                self.log.append(f'\t+ ({len(self.series)}) {full_path}')
                 self.series.append(serie)
         if not all([serie.is_valid for serie in self.series]):
             self.invalidate()
@@ -210,6 +213,20 @@ class Dicom2MHACase(Case):
     def write_log(self, msg: str):
         self.log.append(msg)
 
+    def compile_log(self):
+        divider = '=' * 120
+        log = [divider,
+               f'CASE {self.patient_id}_{self.study_id}',
+               f'\tPATIENT ID\t{self.patient_id}',
+               f'\tSTUDY ID\t{self.study_id}\n']
+        log += self.log
+        log += ['\nSERIES']
+        for i, serie in enumerate(self.series):
+            log.append(f'({i}) {serie.path.as_posix()}')
+            log.extend([f'\t{l}' for l in serie.log])
+            log.append(f'\tFATAL: {serie.error}\n' if serie.error else '')
+        return '\n'.join(log)
+
     def convert(self, *args):
         output_dir, = args
         self.extract_metadata()
@@ -217,21 +234,15 @@ class Dicom2MHACase(Case):
         if not self.settings.allow_duplicates:
             self.resolve_duplicates()
         self.process_and_write(output_dir)
-
-        divider = '=' * 120
-        log = [divider, f'CASE {self.patient_id}_{self.study_id} ({len(self.series)} series)\n'] + self.log + ['']
-        for i, serie in enumerate(self.series):
-            log.extend([f'\t{i}: {serie.path.as_posix()}'] +
-                       [f'\t\t{l}' for l in serie.log] +
-                       ['\t\tFATAL ERROR\n'] if serie.error else ['\n'])
-        return '\n'.join(log + ['\n'])
+        return self.compile_log()
 
     def extract_metadata(self):
         vseries = len(self.valid_series)
-        self.log.append(f'Extracting metadata from {vseries} series')
+        self.log.append(f'Extracting metadata from {plural(vseries, "serie")}')
+        errors = []
 
         file_reader, series_reader = make_sitk_readers()
-        for serie in self.valid_series:
+        for i, serie in enumerate(self.valid_series):
             try:
                 dicom_filenames = [os.path.basename(dcm) for dcm in series_reader.GetGDCMSeriesFileNames(serie.path.as_posix())]
 
@@ -243,17 +254,19 @@ class Dicom2MHACase(Case):
                     serie.verify_dicom_filenames(dicom_filenames)
 
                 serie.extract_metadata(file_reader, dicom_filenames, self.settings.tags)
-                serie.write_log('Extracted metadata.')
+                serie.write_log('Extracted metadata')
             except (MissingDICOMFilesError, UnreadableDICOMError) as e:
                 serie.error = e
+                errors.append(i)
 
-        self.log.append(f'\t({vseries - len(self.valid_series)} errors)')
+        self.log.append(f'\t({plural(len(errors), "error")}{f" {errors}" if len(errors) > 0 else ""})')
 
     def apply_mappings(self):
         vseries = len(self.valid_series)
         self.write_log(f'Applying mappings to {vseries} series')
+        errors = []
 
-        for serie in self.valid_series:
+        for i, serie in enumerate(self.valid_series):
             try:
                 for name, mapping in Dicom2MHACase.settings.mappings.items():
                     for key, values in mapping.items():
@@ -262,18 +275,20 @@ class Dicom2MHACase(Case):
 
                 if len(serie.mappings) == 0:
                     raise NoMappingsApplyError()
-                serie.write_log(f'Applied mappings ({", ".join(serie.mappings)}).')
+                serie.write_log(f'Applied mappings [{", ".join(serie.mappings)}]')
             except NoMappingsApplyError as e:
                 serie.error = e
+                errors.append(i)
 
-        self.write_log(f'\t({vseries - len(self.valid_series)} errors)')
+        self.write_log(f'\t({plural(len(errors), "error")}{f" {errors}" if len(errors) > 0 else ""})')
 
     def resolve_duplicates(self):
-        self.write_log(f'Resolving duplicates between {len(self.valid_series)} series')
+        self.write_log(f'Resolving duplicates between {plural(len(self.valid_series), "serie")}')
 
         vseries = self.valid_series
         duplicates: Dict[str, List[int]] = dict()
         R = random.Random()
+        R.seed(self.settings.random_seed)
 
         # value_func, largest, msg = tiebreaker
         tiebreaker_slice_count = ('slice count', lambda a: len(a.filenames), True)
@@ -300,7 +315,7 @@ class Dicom2MHACase(Case):
 
             # after tiebreakers there are still candidates, select at random
             if len(group) > 1:
-                r = R.randint(0, len(group))
+                r = R.choice(group)
                 for i in group:
                     if i != r:
                         vseries[i].mappings.remove(mapping)
@@ -308,23 +323,23 @@ class Dicom2MHACase(Case):
 
     def process_and_write(self, output_dir: Path):
         total = sum([len(serie.mappings) for serie in self.valid_series])
-        self.write_log(f'Writing {total} series')
-        writes, skips = 0, 0
+        self.write_log(f'Writing {plural(total, "serie")}')
+        errors, skips = [], []
 
         dir = output_dir / self.patient_id
-        for serie in self.valid_series:
+        for i, serie in enumerate(self.valid_series):
             for mapping in serie.mappings:
                 destination = (dir / '_'.join([self.patient_id, self.study_id, mapping])).with_suffix('.mha')
                 if destination.exists():
                     serie.write_log(f'Skipped "{mapping}", already exists: {destination}')
-                    skips += 1
+                    skips.append(i)
 
                 try:
                     image = read_image_series(serie.path)
                 except Exception as e:
                     serie.write_log(f'Skipped "{mapping}", reading DICOM sequence failed, maybe corrupt data? Error: {e}')
                     logging.error(str(e))
-                    raise e
+                    errors.append(i)
                 else:
                     # temporarily commented out
                     # if self.scan_postprocess_func is not None:
@@ -334,17 +349,21 @@ class Dicom2MHACase(Case):
                     except Exception as e:
                         serie.write_log(f'Skipped "{mapping}", write error: {e}')
                         logging.error(str(e))
-                        raise e
-                writes += 1
+                        errors.append(i)
+                    else:
+                        serie.write_log(f'Wrote image to {destination}')
 
-        self.write_log(f'Wrote {writes} MHA files to {dir.as_posix()}\n'
-                       f'\t({total - writes - skips} errors, {skips} skipped)')
+        self.write_log(f'Wrote {total - len(errors) - len(skips)} MHA files to {dir.as_posix()}\n'
+                       f'\t({plural(len(errors), "error")}{f" {errors}" if len(errors) > 0 else ""}, '
+                       f'{len(skips)} skipped{f" {skips}" if len(skips) > 0 else ""})')
 
 
 class Dicom2MHAConverter:
     def __init__(self, input_dir: PathLike, output_dir: PathLike, dcm2mha_settings: Union[PathLike, Dict]):
         self.input_dir = Path(input_dir)
         self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
         if isinstance(dcm2mha_settings, PathLike):
             with open(dcm2mha_settings) as fp:
                 dcm2mha_settings = json.load(fp)
@@ -357,7 +376,7 @@ class Dicom2MHAConverter:
 
         logfile = self.output_dir / f'picai_prep_{datetime.now().strftime("%Y%m%d%H%M%S")}.log'
         logging.basicConfig(filemode='w', level=logging.INFO, format='%(message)s', filename=logfile)
-        logging.info(f'Output directory set to {self.output_dir.absolute().as_posix()}, writing log to {logfile}')
+        logging.info(f'Output directory set to {self.output_dir.absolute().as_posix()}\n\t(writing log to {logfile})\n')
 
     def _init_cases(self, archive: List[Dict]) -> List[Dicom2MHACase]:
         cases = {}
@@ -377,6 +396,9 @@ class Dicom2MHAConverter:
             for future in tqdm(as_completed(futures), total=len(self.cases)):
                 case_log = future.result()
                 logging.info(case_log)
+
+        end_time = datetime.now()
+        logging.info(f'Program completed at {end_time.isoformat()}\n\t(runtime {end_time - start_time})')
 
 
 def read_image_series(image_series_path: Path):
