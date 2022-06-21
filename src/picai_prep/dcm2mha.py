@@ -17,9 +17,9 @@ import os
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from pathlib import Path
 from datetime import datetime
-from typing import Callable, Dict, List, Optional, Set, Tuple, Union, Any
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 import jsonschema
 import numpy as np
@@ -364,7 +364,7 @@ class Dicom2MHAConverter:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        if isinstance(dcm2mha_settings, PathLike):
+        if isinstance(dcm2mha_settings, (Path, str)):
             with open(dcm2mha_settings) as fp:
                 dcm2mha_settings = json.load(fp)
 
