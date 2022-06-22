@@ -376,7 +376,8 @@ class Dicom2MHAConverter:
 
         logfile = self.output_dir / f'picai_prep_{datetime.now().strftime("%Y%m%d%H%M%S")}.log'
         logging.basicConfig(filemode='w', level=logging.INFO, format='%(message)s', filename=logfile)
-        logging.info(f'Output directory set to {self.output_dir.absolute().as_posix()}\n\t(writing log to {logfile})\n')
+        logging.info(f'Output directory set to {self.output_dir.absolute().as_posix()}')
+        print(f'Writing log to {logfile}')
 
     def _init_cases(self, archive: List[Dict]) -> List[Dicom2MHACase]:
         cases = {}
