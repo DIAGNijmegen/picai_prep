@@ -277,10 +277,9 @@ class Dicom2MHACase(Case):
 
     def choose_best_series(self, all_series: List[Series], tiebreakers: List[Tuple[str, callable, bool]], mapping: str):
         # Choose best series from the matched & valid series
-        for tiebreaker in tiebreakers:
+        for name, value_func, pick_largest in tiebreakers:
             if len(all_series) > 1:
                 # determine best tiebreaker value
-                name, value_func, pick_largest = tiebreaker
                 values = [value_func(serie) for serie in all_series]
                 best_value = max(values) if pick_largest else min(values)
 
@@ -308,7 +307,6 @@ class Dicom2MHACase(Case):
     def resolve_duplicates(self):
         self.write_log(f'Resolving duplicates between {plural(len(self.valid_series), "serie")}')
 
-        vseries = self.valid_series
         duplicates: Dict[str, List[Series]] = dict()
         np.random.seed(self.settings.random_seed)
 
@@ -318,7 +316,7 @@ class Dicom2MHACase(Case):
             ('image resolution', lambda a: a.resolution, False),  # pick the series with the highest resolution
         ]
         # create dict collecting all series for each mapping
-        for serie in vseries:
+        for serie in self.valid_series:
             for mapping in serie.mappings:
                 if mapping not in duplicates:
                     duplicates[mapping] = []
