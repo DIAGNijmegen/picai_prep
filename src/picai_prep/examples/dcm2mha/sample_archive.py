@@ -17,6 +17,7 @@ import json
 import os
 from pathlib import Path
 from tqdm import tqdm
+from typing import Dict
 
 from picai_prep.data_utils import PathLike
 
@@ -24,10 +25,11 @@ from picai_prep.data_utils import PathLike
 def generate_dcm2mha_settings(
     archive_dir: PathLike,
     output_path: PathLike,
+    mappings: Dict = None,
     **kwargs
 ):
     """
-    Create dcm2mha_settings.json for a DICOM archive with the following structure:
+    Create dcm2mha_settings.json for a DICOM archive assuming the following structure:
     /path/to/archive/
     ├── [patient UID]/
         ├── [study UID]/
@@ -36,11 +38,25 @@ def generate_dcm2mha_settings(
                 ...
                 ├── slice-n.dcm
 
-    Parameters:
-    - archive_dir: path to DICOM archive
-    - output_path: path to store DICOM->MHA settings JSON to
-        (parent folder should exist)
-    - kwargs: extra options
+    Parameters
+    ----------
+    archive_dir:
+        path to DICOM archive
+    output_path:
+        path to store DICOM->MHA settings JSON to (parent folder should exist)
+    mappings:
+        mapping defining which series within a case is converted, based on metadata tags
+
+    Other Parameters
+    ----------------
+    num_threads: int, default: 4
+        number of threads to use for multiprocessing
+    verify_dicom_filenames: bool, default: True
+        explicitly verify dicom filenames as a sanity check
+    allow_duplicates: bool, default: False
+        when multiple series apply to a mapping, convert all
+    random_seed: int, optional, default: None
+        random is used as a final tiebreaker when resolving duplicates
     """
     ignore_files = [
         ".DS_Store",
@@ -77,9 +93,8 @@ def generate_dcm2mha_settings(
                     "path": path.as_posix(),
                 }]
 
-    archive = {
-        "options": kwargs,
-        "mappings": {
+    if not mappings:
+        mappings = {
             "t2w": {
                 "SeriesDescription": [
                     "t2_tse_tra",
@@ -107,9 +122,14 @@ def generate_dcm2mha_settings(
                     "ep2d_diff_tra_DYNDISTCALC_BVAL",
                 ]
             }
-        },
-        "archive": archive_list,
+        }
+
+    archive = {
+        "mappings": mappings,
+        "archive": archive_list
     }
+    if kwargs:
+        archive["options"] = kwargs
 
     if not len(archive_list):
         raise ValueError("Did not find any DICOM series, aborting.")

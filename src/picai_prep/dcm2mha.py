@@ -16,10 +16,10 @@ import logging
 import os
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, InitVar
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
+from typing import Dict, List, Optional, Union
 
 import jsonschema
 import numpy as np
@@ -39,11 +39,15 @@ class SeriesException(Exception):
     def __init__(self, message: str):
         super().__init__(message)
 
+    def __str__(self):
+         return f'{type(self).__name__}: {", ".join([a for a in self.args])}'
+
 
 class MissingDICOMFilesError(SeriesException):
     """Exception raised when a DICOM series has missing DICOM slices"""
     def __init__(self, path: PathLike):
         super().__init__(f"Missing DICOM slices detected in {path}")
+
 
 class NoMappingsApplyError(SeriesException):
     """Exception raised when no mappings apply to the case"""
@@ -65,41 +69,31 @@ class ArchiveItemPathNotFoundError(SeriesException):
 
 class Dicom2MHASettings:
     def __init__(self, mappings: Dict[str, Dict], options: Dict):
-        from picai_prep.utilities import dicom_tags
-
         self.tags = dict()
         for name, mapping in mappings.items():
-            map = dict()
-            for key, values in mapping.items():
-                l_key = lower_strip(key)
-                try:
-                    self.tags[l_key] = dicom_tags[l_key]
-
-                    if len(values) == 0 or any(type(v) is not str for v in values):
-                        raise ValueError(f"Invalid non-string elements found in {name}/{key} mapping")
-
-                    map[l_key] = [lower_strip(v) for v in values]
-                except KeyError:
-                    raise KeyError(f"Invalid key '{l_key}' in '{name}' mapping, see metadata.json for valid keys.")
-            mappings[name] = map
+            mappings[name] = self.process_mapping(name, mapping)
         self.mappings = mappings
-        self._options = options
 
-    @property
-    def num_threads(self):
-        return self._options.get('num_threads', 4)
+        self.num_threads = options.get('num_threads', 4)
+        self.verify_dicom_filenames = options.get('verify_dicom_filenames', True)
+        self.allow_duplicates = options.get('allow_duplicates', False)
+        self.random_seed = options.get('random_seed', None)
 
-    @property
-    def verify_dicom_filenames(self):
-        return self._options.get('verify_dicom_filenames', True)
+    def process_mapping(self, name: str, mapping: Dict) -> Dict:
+        map = dict()
+        for key, values in mapping.items():
+            l_key = lower_strip(key)
+            try:
+                # add key to group of metadata we intend to extract from the dicoms
+                self.tags[l_key] = dicom_tags[l_key]
 
-    @property
-    def allow_duplicates(self):
-        return self._options.get('allow_duplicates', False)
+                if len(values) == 0 or any(not isinstance(v, str) for v in values):
+                    raise ValueError(f"Invalid non-string elements found in {name}/{key} mapping")
 
-    @property
-    def random_seed(self):
-        return self._options.get('random_seed', None)
+                map[l_key] = [lower_strip(v) for v in values]
+            except KeyError:
+                raise KeyError(f"Invalid key '{l_key}' in '{name}' mapping, see picai_prep/resources/dicom_tags.py for valid keys.")
+        return map
 
 
 @dataclass
@@ -115,23 +109,21 @@ class Series:
 
     mappings: List[str] = field(default_factory=list)
 
-    log: List[str] = field(default_factory=list)
-    _error: Optional[Exception] = None
+    error: Optional[Exception] = None
+    _log: List[str] = field(default_factory=list)
+
+    def __post_init__(self):
+        if not self.path.exists():
+            raise ArchiveItemPathNotFoundError(self.path)
+        if not self.path.is_dir():
+            raise IsADirectoryError(self.path)
 
     @property
     def is_valid(self):
-        return self._error is None
-
-    @property
-    def error(self) -> str:
-        return f'{type(self._error).__name__}: {str(self._error)}' if not self.is_valid else ''
-
-    @error.setter
-    def error(self, e: Exception):
-        self._error = e
+        return self.error is None
 
     def write_log(self, msg: str):
-        self.log.append(msg)
+        self._log.append(msg)
 
     def verify_dicom_filenames(self, filenames: List[PathLike]) -> bool:
         vdcms = [d.rsplit('.', 1)[0] for d in filenames]
@@ -152,8 +144,8 @@ class Series:
             file_reader.SetFileName(dicom_slice_path)
             file_reader.ReadImageInformation()
             self.resolution = np.prod(file_reader.GetSpacing())
-            for name, id in tags.items():
-                self.metadata[name] = lower_strip(file_reader.GetMetaData(id) if file_reader.HasMetaDataKey(id) else '')
+            for name, tag in tags.items():
+                self.metadata[name] = lower_strip(file_reader.GetMetaData(tag) if file_reader.HasMetaDataKey(tag) else '')
             # extracting PatientID and StudyInstanceUID no longer performed as these are now required values
         except Exception as e:
             self.write_log(f"Reading with SimpleITK failed for {self.path} with error: {e}. Attempting with pydicom.")
@@ -164,7 +156,9 @@ class Series:
                         self.metadata[name] = lower_strip(get_pydicom_value(data, id))
                     # extracting PatientID and StudyInstanceUID no longer performed as these are now required values
             except pydicom.errors.InvalidDicomError:
-                raise UnreadableDICOMError(self.path)
+                e = UnreadableDICOMError(self.path)
+                self.error = e
+                logging.error(str(e))
 
 
 class Case:
@@ -178,26 +172,22 @@ class Dicom2MHACase(Case):
         self.patient_id = patient_id
         self.study_id = study_id
         self.series: List[Series] = []
-        self.log = [f'Importing {plural(len(paths), "serie")}']
+        self._log = [f'Importing {plural(len(paths), "serie")}']
 
-        fullpaths = set()
+        full_paths = set()
         for path in paths:
             full_path = input_dir / path
             serie = Series(full_path, patient_id, study_id)
             try:
-                if not full_path.exists():
-                    raise ArchiveItemPathNotFoundError(path)
-                elif not full_path.is_dir():
-                    raise NotADirectoryError(path)
-                elif path in fullpaths:
+                if path in full_paths:
                     raise FileExistsError(path)
             except Exception as e:
                 serie.error = e
                 logging.error(str(e))
             else:
-                fullpaths.add(full_path)
+                full_paths.add(full_path)
             finally:
-                self.log.append(f'\t+ ({len(self.series)}) {full_path}')
+                self.write_log(f'\t+ ({len(self.series)}) {full_path}')
                 self.series.append(serie)
         if not all([serie.is_valid for serie in self.series]):
             self.invalidate()
@@ -211,7 +201,7 @@ class Dicom2MHACase(Case):
             serie.error = SeriesException('Invalidated due to critical error in sibling')
 
     def write_log(self, msg: str):
-        self.log.append(msg)
+        self._log.append(msg)
 
     def compile_log(self):
         divider = '=' * 120
@@ -219,26 +209,31 @@ class Dicom2MHACase(Case):
                f'CASE {self.patient_id}_{self.study_id}',
                f'\tPATIENT ID\t{self.patient_id}',
                f'\tSTUDY ID\t{self.study_id}\n']
-        log += self.log
-        log += ['\nSERIES']
+        log += self._log
+        log += ['\nSERIES', divider.replace('=', '-')]
         for i, serie in enumerate(self.series):
             log.append(f'({i}) {serie.path.as_posix()}')
-            log.extend([f'\t{l}' for l in serie.log])
-            log.append(f'\tFATAL: {serie.error}\n' if serie.error else '')
+            log.extend([f'\t{l}' for l in serie._log])
+            log.append(f'\tFATAL: {serie.error}\n' if not serie.is_valid else '')
         return '\n'.join(log)
 
     def convert(self, *args):
-        output_dir, = args
-        self.extract_metadata()
-        self.apply_mappings()
-        if not self.settings.allow_duplicates:
-            self.resolve_duplicates()
-        self.process_and_write(output_dir)
-        return self.compile_log()
+        try:
+            output_dir, = args
+            self.extract_metadata()
+            self.apply_mappings()
+            if not self.settings.allow_duplicates:
+                self.resolve_duplicates()
+            self.process_and_write(output_dir)
+        except Exception as e:
+            self.invalidate()
+            logging.error(str(e))
+        finally:
+            return self.compile_log()
 
     def extract_metadata(self):
         vseries = len(self.valid_series)
-        self.log.append(f'Extracting metadata from {plural(vseries, "serie")}')
+        self.write_log(f'Extracting metadata from {plural(vseries, "serie")}')
         errors = []
 
         file_reader, series_reader = make_sitk_readers()
@@ -259,7 +254,7 @@ class Dicom2MHACase(Case):
                 serie.error = e
                 errors.append(i)
 
-        self.log.append(f'\t({plural(len(errors), "error")}{f" {errors}" if len(errors) > 0 else ""})')
+        self.write_log(f'\t({plural(len(errors), "error")}{f" {errors}" if len(errors) > 0 else ""})')
 
     def apply_mappings(self):
         vseries = len(self.valid_series)
@@ -268,7 +263,7 @@ class Dicom2MHACase(Case):
 
         for i, serie in enumerate(self.valid_series):
             try:
-                for name, mapping in Dicom2MHACase.settings.mappings.items():
+                for name, mapping in self.settings.mappings.items():
                     for key, values in mapping.items():
                         if any(v == serie.metadata[key] for v in values):
                             serie.mappings.append(name)
@@ -310,7 +305,7 @@ class Dicom2MHACase(Case):
                     for i, v in competitors:
                         if best_v != v:
                             vseries[i].mappings.remove(mapping)
-                            vseries[i].write_log(f'removed by {name} tiebreaker from "{mapping}"')
+                            vseries[i].write_log(f'Removed by {name} tiebreaker from "{mapping}"')
                             group.remove(i)
 
             # after tiebreakers there are still candidates, select at random
@@ -319,7 +314,7 @@ class Dicom2MHACase(Case):
                 for i in group:
                     if i != r:
                         vseries[i].mappings.remove(mapping)
-                        vseries[i].write_log(f'removed by random selection from "{mapping}"')
+                        vseries[i].write_log(f'Removed by random selection from "{mapping}"')
 
     def process_and_write(self, output_dir: Path):
         total = sum([len(serie.mappings) for serie in self.valid_series])
@@ -398,7 +393,7 @@ class Dicom2MHAConverter:
                 logging.info(case_log)
 
         end_time = datetime.now()
-        logging.info(f'Program completed at {end_time.isoformat()}\n\t(runtime {end_time - start_time})')
+        logging.info(f'Program ended at {end_time.isoformat()}\n\t(runtime {end_time - start_time})')
 
 
 def read_image_series(image_series_path: Path):

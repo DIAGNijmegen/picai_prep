@@ -27,8 +27,8 @@ def lower_strip(s: str):
     return s.lower().strip()
 
 
-def plural(value: int, word: str):
-    return f"{value} {word}{'' if value == 1 else 's'}"
+def plural(num: int, word: str):
+    return f"{num} {word}{'' if num == 1 else 's'}"
 
 
 def get_pydicom_value(data: pydicom.dataset.Dataset, key: str):
