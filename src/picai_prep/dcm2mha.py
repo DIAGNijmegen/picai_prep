@@ -288,8 +288,7 @@ class Dicom2MHACase(Case):
                 chosen_series = [serie for serie, value in zip(all_series, values) if value == best_value]
 
                 # log dropped series
-                dropped_series = [serie for serie, value in zip(all_series, values) if value != best_value]
-                for serie in dropped_series:
+                for serie in [serie for serie in all_series if serie not in chosen_series]:
                     serie.write_log(f'Removed by {name} tiebreaker from "{mapping}"')
 
                 # continue with chosen series
