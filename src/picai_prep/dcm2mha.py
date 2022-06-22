@@ -281,15 +281,15 @@ class Dicom2MHACase(Case):
     def resolve_duplicates(self):
         self.write_log(f'Resolving duplicates between {plural(len(self.valid_series), "serie")}')
         np.random.seed(self.settings.random_seed)
-        matched_series: Dict[str, List[Series]] = {
-            mapping: [] for serie in self.valid_series for mapping in serie.mappings
-        }
 
-        # value_func, largest, msg = tiebreaker
+        # define tiebreakers, which should have: name, value_func, pick_largest
         tiebreakers = [('slice count', lambda a: len(a.filenames), True),
                        ('image resolution', lambda a: a.resolution, False)]
 
         # create dict collecting all items for each mapping
+        matched_series: Dict[str, List[Series]] = {
+            mapping: [] for serie in self.valid_series for mapping in serie.mappings
+        }
         for serie in self.valid_series:
             for mapping in serie.mappings:
                 matched_series[mapping] += [serie]
@@ -305,7 +305,7 @@ class Dicom2MHACase(Case):
                     if len(series) > 1:
                         serie_value_pairs = [(serie, value_func(serie)) for serie in series]
                         serie_value_pairs.sort(key=lambda a: a[1], reverse=pick_largest)
-                        best_value = serie_value_pairs[0][1]
+                        _, best_value = serie_value_pairs[0]
 
                         for serie, value in serie_value_pairs:
                             if value != best_value:
