@@ -14,12 +14,11 @@
 import json
 import logging
 import os
-import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field, InitVar
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import jsonschema
 import numpy as np
@@ -213,13 +212,12 @@ class Dicom2MHACase(Case):
         log += ['\nSERIES', divider.replace('=', '-')]
         for i, serie in enumerate(self.series):
             log.append(f'({i}) {serie.path.as_posix()}')
-            log.extend([f'\t{l}' for l in serie._log])
+            log.extend([f'\t{item}' for item in serie._log])
             log.append(f'\tFATAL: {serie.error}\n' if not serie.is_valid else '')
         return '\n'.join(log)
 
-    def convert(self, *args):
+    def convert(self, output_dir):
         try:
-            output_dir, = args
             self.extract_metadata()
             self.apply_mappings()
             if not self.settings.allow_duplicates:
@@ -277,44 +275,62 @@ class Dicom2MHACase(Case):
 
         self.write_log(f'\t({plural(len(errors), "error")}{f" {errors}" if len(errors) > 0 else ""})')
 
+    def choose_best_series(self, all_series: List[Series], tiebreakers: List[Tuple[str, callable, bool]], mapping: str):
+        # Choose best series from the matched & valid series
+        for tiebreaker in tiebreakers:
+            if len(all_series) > 1:
+                # determine best tiebreaker value
+                name, value_func, pick_largest = tiebreaker
+                values = [value_func(serie) for serie in all_series]
+                best_value = max(values) if pick_largest else min(values)
+
+                # select series with best value
+                chosen_series = [serie for serie, value in zip(all_series, values) if value == best_value]
+
+                # log dropped series
+                dropped_series = [serie for serie, value in zip(all_series, values) if value != best_value]
+                for serie in dropped_series:
+                    serie.write_log(f'Removed by {name} tiebreaker from "{mapping}"')
+
+                # continue with chosen series
+                all_series = chosen_series
+
+        # if after tiebreakers there are still multiple options, select at random
+        if len(all_series) > 1:
+            chosen_series = np.random.choice(all_series)
+            for serie in all_series:
+                if serie != chosen_series:
+                    serie.write_log(f'Removed by random selection from "{mapping}"')
+
+            all_series = [chosen_series]
+
+        return all_series
+
     def resolve_duplicates(self):
         self.write_log(f'Resolving duplicates between {plural(len(self.valid_series), "serie")}')
 
         vseries = self.valid_series
-        duplicates: Dict[str, List[int]] = dict()
-        R = random.Random()
-        R.seed(self.settings.random_seed)
+        duplicates: Dict[str, List[Series]] = dict()
+        np.random.seed(self.settings.random_seed)
 
-        # value_func, largest, msg = tiebreaker
-        tiebreaker_slice_count = ('slice count', lambda a: len(a.filenames), True)
-        tiebreaker_image_resolution = ('image resolution', lambda a: a.resolution, False)
-
-        # create dict collecting all items for each mapping
-        for i, serie in enumerate(vseries):
+        # define tiebreakers, which should have: name, value_func, pick_largest
+        tiebreakers = [
+            ('slice count', lambda a: len(a.filenames), True),  # pick the series with the most slices
+            ('image resolution', lambda a: a.resolution, False),  # pick the series with the highest resolution
+        ]
+        # create dict collecting all series for each mapping
+        for serie in vseries:
             for mapping in serie.mappings:
-                duplicates[mapping] = duplicates.get(mapping, []) + [i]
+                if mapping not in duplicates:
+                    duplicates[mapping] = []
+                duplicates[mapping] += [serie]
 
-        for mapping, group in duplicates.items():
-            for tiebreaker in [tiebreaker_slice_count, tiebreaker_image_resolution]:
-                if len(group) > 1:
-                    name, value_func, largest = tiebreaker
-                    competitors = [(i, value_func(vseries[i])) for i in group]
-                    competitors.sort(key=lambda a: a[1], reverse=largest)
-                    best_i, best_v = competitors[0]
-
-                    for i, v in competitors:
-                        if best_v != v:
-                            vseries[i].mappings.remove(mapping)
-                            vseries[i].write_log(f'Removed by {name} tiebreaker from "{mapping}"')
-                            group.remove(i)
-
-            # after tiebreakers there are still candidates, select at random
-            if len(group) > 1:
-                r = R.choice(group)
-                for i in group:
-                    if i != r:
-                        vseries[i].mappings.remove(mapping)
-                        vseries[i].write_log(f'Removed by random selection from "{mapping}"')
+        for mapping, series in duplicates.items():
+            duplicates[mapping] = self.choose_best_series(
+                all_series=series,
+                tiebreakers=tiebreakers,
+                mapping=mapping
+            )
 
     def process_and_write(self, output_dir: Path):
         total = sum([len(serie.mappings) for serie in self.valid_series])
@@ -363,7 +379,6 @@ class Dicom2MHAConverter:
             with open(dcm2mha_settings) as fp:
                 dcm2mha_settings = json.load(fp)
 
-        from picai_prep.utilities import dcm2mha_schema
         jsonschema.validate(dcm2mha_settings, dcm2mha_schema, cls=jsonschema.Draft7Validator)
 
         self.settings = Dicom2MHASettings(dcm2mha_settings.get('mappings', {}), dcm2mha_settings.get('options', {}))
