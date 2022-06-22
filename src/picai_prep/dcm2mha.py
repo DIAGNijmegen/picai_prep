@@ -14,9 +14,8 @@
 import json
 import logging
 import os
-import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field, InitVar
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Union
@@ -29,7 +28,7 @@ from tqdm import tqdm
 
 from picai_prep.archive import ArchiveConverter
 from picai_prep.data_utils import PathLike, atomic_image_write
-from picai_prep.utilities import (dcm2mha_schema, dicom_tags,
+from picai_prep.utilities import (dicom_tags,
                                   get_pydicom_value, lower_strip,
                                   make_sitk_readers, metadata_defaults, plural)
 
@@ -112,6 +111,9 @@ class Series:
     error: Optional[Exception] = None
     _log: List[str] = field(default_factory=list)
 
+    def __repr__(self):
+        return self.path.name
+
     def __post_init__(self):
         if not self.path.exists():
             raise ArchiveItemPathNotFoundError(self.path)
@@ -192,6 +194,9 @@ class Dicom2MHACase(Case):
         if not all([serie.is_valid for serie in self.series]):
             self.invalidate()
 
+    def __repr__(self):
+        return f'{self.patient_id}/{self.study_id}'
+
     @property
     def valid_series(self):
         return [item for item in self.series if item.is_valid]
@@ -222,8 +227,7 @@ class Dicom2MHACase(Case):
             output_dir, = args
             self.extract_metadata()
             self.apply_mappings()
-            if not self.settings.allow_duplicates:
-                self.resolve_duplicates()
+            self.resolve_duplicates()
             self.process_and_write(output_dir)
         except Exception as e:
             self.invalidate()
@@ -265,7 +269,7 @@ class Dicom2MHACase(Case):
             try:
                 for name, mapping in self.settings.mappings.items():
                     for key, values in mapping.items():
-                        if any(v == serie.metadata[key] for v in values):
+                        if any(v in serie.metadata[key] for v in values):
                             serie.mappings.append(name)
 
                 if len(serie.mappings) == 0:
@@ -282,12 +286,11 @@ class Dicom2MHACase(Case):
 
         vseries = self.valid_series
         duplicates: Dict[str, List[int]] = dict()
-        R = random.Random()
-        R.seed(self.settings.random_seed)
+        np.random.seed(self.settings.random_seed)
 
         # value_func, largest, msg = tiebreaker
-        tiebreaker_slice_count = ('slice count', lambda a: len(a.filenames), True)
-        tiebreaker_image_resolution = ('image resolution', lambda a: a.resolution, False)
+        tiebreakers = [('slice count', lambda a: len(a.filenames), True),
+                       ('image resolution', lambda a: a.resolution, False)]
 
         # create dict collecting all items for each mapping
         for i, serie in enumerate(vseries):
@@ -295,26 +298,31 @@ class Dicom2MHACase(Case):
                 duplicates[mapping] = duplicates.get(mapping, []) + [i]
 
         for mapping, group in duplicates.items():
-            for tiebreaker in [tiebreaker_slice_count, tiebreaker_image_resolution]:
+            if self.settings.allow_duplicates:
+                for i, n in zip(group, range(len(group))):
+                    vseries[i].mappings.remove(mapping)
+                    vseries[i].mappings.append(f'{mapping}_{n}')
+            else:
+                for tiebreaker in tiebreakers:
+                    if len(group) > 1:
+                        name, value_func, largest = tiebreaker
+                        competitors = [(i, value_func(vseries[i])) for i in group]
+                        competitors.sort(key=lambda a: a[1], reverse=largest)
+                        best_i, best_v = competitors[0]
+
+                        for i, v in competitors:
+                            if best_v != v:
+                                vseries[i].mappings.remove(mapping)
+                                vseries[i].write_log(f'Removed by {name} tiebreaker from "{mapping}"')
+                                group.remove(i)
+
+                # after tiebreakers there are still candidates, select at random
                 if len(group) > 1:
-                    name, value_func, largest = tiebreaker
-                    competitors = [(i, value_func(vseries[i])) for i in group]
-                    competitors.sort(key=lambda a: a[1], reverse=largest)
-                    best_i, best_v = competitors[0]
-
-                    for i, v in competitors:
-                        if best_v != v:
+                    c = np.random.choice(group)
+                    for i in group:
+                        if i != c:
                             vseries[i].mappings.remove(mapping)
-                            vseries[i].write_log(f'Removed by {name} tiebreaker from "{mapping}"')
-                            group.remove(i)
-
-            # after tiebreakers there are still candidates, select at random
-            if len(group) > 1:
-                r = R.choice(group)
-                for i in group:
-                    if i != r:
-                        vseries[i].mappings.remove(mapping)
-                        vseries[i].write_log(f'Removed by random selection from "{mapping}"')
+                            vseries[i].write_log(f'Removed by random selection from "{mapping}"')
 
     def process_and_write(self, output_dir: Path):
         total = sum([len(serie.mappings) for serie in self.valid_series])
