@@ -64,19 +64,21 @@ class ArchiveItemPathNotFoundError(SeriesException):
         super().__init__(f"Provided archive item path not found ({path})")
 
 
+@dataclass
 class Dicom2MHASettings:
-    def __init__(self, mappings: Dict[str, Dict], options: Dict):
-        self.tags = dict()
-        for name, mapping in mappings.items():
-            mappings[name] = self.process_mapping(name, mapping)
-        self.mappings = mappings
+    mappings: Dict[str, Dict] = field(default_factory=dict)  # TODO: add what kind of Dict inside
+    num_threads: int = 4
+    verify_dicom_filenames: bool = True
+    allow_duplicates: bool = False
+    random_seed: Optional[int] = None
+    tags: Dict = field(default_factory=dict)  # TODO: add what kind of Dict
 
-        self.num_threads = options.get('num_threads', 4)
-        self.verify_dicom_filenames = options.get('verify_dicom_filenames', True)
-        self.allow_duplicates = options.get('allow_duplicates', False)
-        self.random_seed = options.get('random_seed', None)
+    def __post_init__(self):
+        for name, mapping in self.mappings.items():
+            self.mappings[name] = self.process_mapping(name, mapping)
 
-    def process_mapping(self, name: str, mapping: Dict) -> Dict:
+    def process_mapping(self, name: str, mapping: Dict) -> Dict:  # TODO: what kind of Dict
+        """TODO: add a docstring"""
         map = dict()
         for key, values in mapping.items():
             l_key = lower_strip(key)
@@ -166,7 +168,7 @@ class Case:
 
 
 class Dicom2MHACase(Case):
-    settings: Dicom2MHASettings = Dicom2MHASettings({}, {})
+    settings: Dicom2MHASettings = Dicom2MHASettings({}, {})  # TODO: add factory or set to None->init later
 
     def __init__(self, input_dir: Path, patient_id: str, study_id: str, paths: List[PathLike]):
         self.patient_id = patient_id
@@ -360,6 +362,7 @@ class Dicom2MHACase(Case):
 
 class Dicom2MHAConverter:
     def __init__(self, input_dir: PathLike, output_dir: PathLike, dcm2mha_settings: Union[PathLike, Dict]):
+        """TODO: add docstring"""
         self.input_dir = Path(input_dir)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -371,7 +374,7 @@ class Dicom2MHAConverter:
         from picai_prep.utilities import dcm2mha_schema
         jsonschema.validate(dcm2mha_settings, dcm2mha_schema, cls=jsonschema.Draft7Validator)
 
-        self.settings = Dicom2MHASettings(dcm2mha_settings.get('mappings', {}), dcm2mha_settings.get('options', {}))
+        self.settings = Dicom2MHASettings(dcm2mha_settings.get('mappings', {}), **dcm2mha_settings.get('options', {}))
         self.cases = self._init_cases(dcm2mha_settings.get('archive', {}))
 
         logfile = self.output_dir / f'picai_prep_{datetime.now().strftime("%Y%m%d%H%M%S")}.log'
