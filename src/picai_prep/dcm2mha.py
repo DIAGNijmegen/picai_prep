@@ -320,9 +320,6 @@ class Dicom2MHACase(Case):
                                 serie.write_log(f'Removed by {name} tiebreaker from "{mapping}"')
                                 series.remove(serie)
 
-                # after tiebreakers there should not be more than one item left
-                assert len(series) <= 1, f'More than one serie left for mapping "{mapping}"'
-
     def process_and_write(self, output_dir: Path):
         total = sum([len(serie.mappings) for serie in self.valid_series])
         self.write_log(f'Writing {plural(total, "serie")}')
