@@ -14,18 +14,14 @@
 
 
 import datetime
-import json
 import logging
 import os
 from abc import ABC, abstractmethod
-from dataclasses import InitVar, dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple, Union
-
-import jsonschema
+from typing import Dict, Optional
 
 from picai_prep.data_utils import PathLike
-from picai_prep.utilities import lower_strip, metadata_defaults, plural
+from picai_prep.utilities import plural
 
 
 class ArchiveConverter(ABC):
