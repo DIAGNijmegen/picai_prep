@@ -71,7 +71,6 @@ class Dicom2MHASettings:
     num_threads: int = 4
     verify_dicom_filenames: bool = True
     allow_duplicates: bool = False
-    random_seed: Optional[int] = None
     tags: Dict = field(default_factory=dict)  # TODO: add what kind of Dict
 
     def __post_init__(self):
@@ -285,11 +284,13 @@ class Dicom2MHACase(Case):
 
     def resolve_duplicates(self):
         self.write_log(f'Resolving duplicates between {plural(len(self.valid_series), "serie")}')
-        np.random.seed(self.settings.random_seed)
 
         # define tiebreakers, which should have: name, value_func, pick_largest
-        tiebreakers = [('slice count', lambda a: len(a.filenames), True),
-                       ('image resolution', lambda a: a.resolution, False)]
+        tiebreakers = [
+            ('slice count', lambda a: len(a.filenames), True),
+            ('image resolution', lambda a: a.resolution, False),
+            ('filename', lambda a: str(a.path), False),
+        ]
 
         # create dict collecting all items for each mapping
         matched_series: Dict[str, List[Series]] = {
@@ -318,13 +319,8 @@ class Dicom2MHACase(Case):
                                 serie.write_log(f'Removed by {name} tiebreaker from "{mapping}"')
                                 series.remove(serie)
 
-                # after tiebreakers there are still candidates, select at random
-                if len(series) > 1:
-                    chosen_serie = np.random.choice(series)
-                    for serie in series:
-                        if serie != chosen_serie:
-                            serie.mappings.remove(mapping)
-                            serie.write_log(f'Removed by random selection from "{mapping}"')
+                # after tiebreakers there should not be more than one item left
+                assert len(series) <= 1, f'More than one serie left for mapping "{mapping}"'
 
     def process_and_write(self, output_dir: Path):
         total = sum([len(serie.mappings) for serie in self.valid_series])
