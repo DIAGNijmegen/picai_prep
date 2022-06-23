@@ -27,7 +27,8 @@ import SimpleITK as sitk
 from tqdm import tqdm
 
 from picai_prep.data_utils import PathLike, atomic_image_write
-from picai_prep.utilities import (dicom_tags, get_pydicom_value, lower_strip,
+from picai_prep.utilities import (dcm2mha_schema, dicom_tags,
+                                  get_pydicom_value, lower_strip,
                                   make_sitk_readers, metadata_defaults, plural)
 
 
@@ -37,7 +38,7 @@ class SeriesException(Exception):
         super().__init__(message)
 
     def __str__(self):
-         return f'{type(self).__name__}: {", ".join([a for a in self.args])}'
+        return f'{type(self).__name__}: {", ".join([a for a in self.args])}'
 
 
 class MissingDICOMFilesError(SeriesException):
@@ -81,7 +82,7 @@ class Dicom2MHASettings:
         """TODO: add a docstring"""
         map = dict()
         for key, values in mapping.items():
-            l_key = lower_strip(key)
+            l_key = lower_strip(key)  # TODO: make lower strip optional
             try:
                 # add key to group of metadata we intend to extract from the dicoms
                 self.tags[l_key] = dicom_tags[l_key]
@@ -103,7 +104,7 @@ class Series:
 
     # image metadata
     filenames: Optional[List[str]] = None
-    resolution: Optional[np.ndarray] = None
+    resolution: Optional[float] = None
     metadata: Optional[Dict[str, str]] = field(default_factory=dict)
 
     mappings: List[str] = field(default_factory=list)
@@ -118,7 +119,7 @@ class Series:
         if not self.path.exists():
             raise ArchiveItemPathNotFoundError(self.path)
         if not self.path.is_dir():
-            raise IsADirectoryError(self.path)
+            raise NotADirectoryError(self.path)
 
     @property
     def is_valid(self):
@@ -371,7 +372,6 @@ class Dicom2MHAConverter:
             with open(dcm2mha_settings) as fp:
                 dcm2mha_settings = json.load(fp)
 
-        from picai_prep.utilities import dcm2mha_schema
         jsonschema.validate(dcm2mha_settings, dcm2mha_schema, cls=jsonschema.Draft7Validator)
 
         self.settings = Dicom2MHASettings(dcm2mha_settings.get('mappings', {}), **dcm2mha_settings.get('options', {}))
@@ -387,8 +387,11 @@ class Dicom2MHAConverter:
         for item in archive:
             key = tuple(item[id] for id in metadata_defaults.keys())  # (patient_id, study_id)
             cases[key] = cases.get(key, []) + [item['path']]
-        return [Dicom2MHACase(self.input_dir, patient_id, study_id, paths) for (patient_id, study_id), paths in
-                cases.items()]
+
+        return [
+            Dicom2MHACase(self.input_dir, patient_id, study_id, paths)
+            for (patient_id, study_id), paths in cases.items()
+        ]
 
     def convert(self):
         start_time = datetime.now()
@@ -405,16 +408,16 @@ class Dicom2MHAConverter:
         logging.info(f'Program ended at {end_time.isoformat()}\n\t(runtime {end_time - start_time})')
 
 
-def read_image_series(image_series_path: Path):
+def read_image_series(image_series_path: PathLike) -> sitk.Image:
     file_reader, series_reader = make_sitk_readers()
-    dicom_slice_paths = series_reader.GetGDCMSeriesFileNames(image_series_path.as_posix())
+    dicom_slice_paths = series_reader.GetGDCMSeriesFileNames(str(image_series_path))
 
     try:
         series_reader.SetFileNames(dicom_slice_paths)
-        image = series_reader.Execute()
+        image: sitk.Image = series_reader.Execute()
 
         file_reader.SetFileName(dicom_slice_paths[-1])
-        dicom_slice = file_reader.Execute()
+        dicom_slice: sitk.Image = file_reader.Execute()
         for key in dicom_tags.values():
             if dicom_slice.HasMetaDataKey(key) and len(dicom_slice.GetMetaData(key)) > 0:
                 image.SetMetaData(key, dicom_slice.GetMetaData(key))
@@ -431,7 +434,7 @@ def read_image_series(image_series_path: Path):
             image[i, :, :] = s.pixel_array
 
         # convert to SimpleITK
-        image = sitk.GetImageFromArray(image)
+        image: sitk.Image = sitk.GetImageFromArray(image)
         image.SetSpacing(list(slices[0].PixelSpacing) + [slices[0].SliceThickness])
 
         for key in dicom_tags.values():
