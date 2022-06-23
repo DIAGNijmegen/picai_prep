@@ -75,9 +75,9 @@ class Dicom2MHASettings:
 
     def __post_init__(self):
         for name, mapping in self.mappings.items():
-            self.mappings[name] = self.process_mapping(name, mapping)
+            self.mappings[name] = self._process_mapping(name, mapping)
 
-    def process_mapping(self, name: str, mapping: Dict) -> Dict:  # TODO: what kind of Dict
+    def _process_mapping(self, name: str, mapping: Dict) -> Dict:  # TODO: what kind of Dict
         """TODO: add a docstring"""
         map = dict()
         for key, values in mapping.items():
@@ -172,7 +172,7 @@ class Dicom2MHACase(Case):
     patient_id: str
     study_id: str
     paths: List[PathLike]
-    settings: Dicom2MHASettings = Dicom2MHASettings({}, {})  # TODO: add factory or set to None->init later
+    settings: Dicom2MHASettings
 
     def __post_init__(self):
         self.series: List[Series] = []
@@ -270,6 +270,7 @@ class Dicom2MHACase(Case):
             try:
                 for name, mapping in self.settings.mappings.items():
                     for key, values in mapping.items():
+                        # TODO: option for mapping matching... [strict, stripped (lowerstrip()), contains, Callable]
                         if any(v == serie.metadata[key] for v in values):
                             serie.mappings.append(name)
 
@@ -373,21 +374,21 @@ class Dicom2MHAConverter:
         jsonschema.validate(dcm2mha_settings, dcm2mha_schema, cls=jsonschema.Draft7Validator)
 
         self.settings = Dicom2MHASettings(dcm2mha_settings['mappings'], **dcm2mha_settings.get('options', {}))
-        self.cases = self._init_cases(dcm2mha_settings['archive'], settings=self.settings)
+        self.cases = self._init_cases(dcm2mha_settings['archive'])
 
         logfile = self.output_dir / f'picai_prep_{datetime.now().strftime("%Y%m%d%H%M%S")}.log'
         logging.basicConfig(level=logging.INFO, format='%(message)s', filename=logfile)
         logging.info(f'Output directory set to {self.output_dir.absolute().as_posix()}')
         print(f'Writing log to {logfile.absolute()}')
 
-    def _init_cases(self, archive: List[Dict], settings: Dicom2MHASettings) -> List[Dicom2MHACase]:
+    def _init_cases(self, archive: List[Dict]) -> List[Dicom2MHACase]:
         cases = {}
         for item in archive:
             key = tuple(item[id] for id in metadata_defaults.keys())  # (patient_id, study_id)
             cases[key] = cases.get(key, []) + [item['path']]
 
         return [
-            Dicom2MHACase(self.input_dir, patient_id, study_id, paths, settings)
+            Dicom2MHACase(self.input_dir, patient_id, study_id, paths, self.settings)
             for (patient_id, study_id), paths in cases.items()
         ]
 
