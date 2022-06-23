@@ -16,10 +16,10 @@
 import json
 import os
 from pathlib import Path
-from tqdm import tqdm
 from typing import Dict
 
 from picai_prep.data_utils import PathLike
+from tqdm import tqdm
 
 
 def generate_dcm2mha_settings(
@@ -55,8 +55,6 @@ def generate_dcm2mha_settings(
         explicitly verify dicom filenames as a sanity check
     allow_duplicates: bool, default: False
         when multiple series apply to a mapping, convert all
-    random_seed: int, optional, default: None
-        random is used as a final tiebreaker when resolving duplicates
     """
     ignore_files = [
         ".DS_Store",
