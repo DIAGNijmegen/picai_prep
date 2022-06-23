@@ -141,15 +141,15 @@ class Series:
 
     def extract_metadata(self, file_reader: sitk.ImageFileReader, filenames: List[PathLike], tags: Dict[str, str]):
         self.filenames = filenames
-        dicom_slice_path = os.path.join(self.path, filenames[-1])
+        dicom_slice_path = self.path / filenames[-1]
 
         try:
-            file_reader.SetFileName(dicom_slice_path)
+            file_reader.SetFileName(str(dicom_slice_path))
             file_reader.ReadImageInformation()
             self.resolution = np.prod(file_reader.GetSpacing())
             for name, tag in tags.items():
+                # TODO: make lower strip optional
                 self.metadata[name] = lower_strip(file_reader.GetMetaData(tag) if file_reader.HasMetaDataKey(tag) else '')
-            # extracting PatientID and StudyInstanceUID no longer performed as these are now required values
         except Exception as e:
             self.write_log(f"Reading with SimpleITK failed for {self.path} with error: {e}. Attempting with pydicom.")
             try:
@@ -157,7 +157,6 @@ class Series:
                     self.resolution = np.prod(data.PixelSpacing)
                     for name, id in tags.items():
                         self.metadata[name] = lower_strip(get_pydicom_value(data, id))
-                    # extracting PatientID and StudyInstanceUID no longer performed as these are now required values
             except pydicom.errors.InvalidDicomError:
                 e = UnreadableDICOMError(self.path)
                 self.error = e
@@ -168,35 +167,38 @@ class Case:
     pass
 
 
+@dataclass
 class Dicom2MHACase(Case):
+    input_dir: Path
+    patient_id: str
+    study_id: str
+    paths: List[PathLike]
     settings: Dicom2MHASettings = Dicom2MHASettings({}, {})  # TODO: add factory or set to None->init later
 
-    def __init__(self, input_dir: Path, patient_id: str, study_id: str, paths: List[PathLike]):
-        self.patient_id = patient_id
-        self.study_id = study_id
+    def __post_init__(self):
         self.series: List[Series] = []
-        self._log = [f'Importing {plural(len(paths), "serie")}']
+        self._log = [f'Importing {plural(len(self.paths), "serie")}']
 
         full_paths = set()
-        for path in paths:
-            full_path = input_dir / path
-            serie = Series(full_path, patient_id, study_id)
+        for path in self.paths:
+            full_path = self.input_dir / path
+            serie = Series(full_path, self.patient_id, self.study_id)
             try:
                 if path in full_paths:
                     raise FileExistsError(path)
+                full_paths.add(full_path)
             except Exception as e:
                 serie.error = e
                 logging.error(str(e))
-            else:
-                full_paths.add(full_path)
             finally:
                 self.write_log(f'\t+ ({len(self.series)}) {full_path}')
                 self.series.append(serie)
+
         if not all([serie.is_valid for serie in self.series]):
             self.invalidate()
 
     def __repr__(self):
-        return f'{self.patient_id}/{self.study_id}'
+        return f'Case({self.patient_id}_{self.study_id})'
 
     @property
     def valid_series(self):
