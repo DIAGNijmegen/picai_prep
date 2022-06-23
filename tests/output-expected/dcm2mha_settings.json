@@ -1,7 +1,4 @@
 {
-    "options": {
-        "random_seed": 1
-    },
     "mappings": {
         "t2w": {
             "SeriesDescription": [

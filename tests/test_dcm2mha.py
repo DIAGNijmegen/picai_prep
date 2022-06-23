@@ -14,12 +14,13 @@
 
 
 import os
-import random
 import shutil
+from pathlib import Path
 
 import SimpleITK as sitk
 from numpy.testing import assert_allclose
-from picai_prep.dcm2mha import Dicom2MHAConverter
+from picai_prep.dcm2mha import (Dicom2MHACase, Dicom2MHAConverter,
+                                Dicom2MHASettings)
 
 
 def test_dcm2mha(
@@ -62,3 +63,38 @@ def test_dcm2mha(
 
             # compare images
             assert_allclose(img_expected, img)
+
+
+def test_resolve_duplicates(
+    input_dir: str = "tests/input/dcm/ProstateX",
+    output_dir: str = "tests/output/mha/ProstateX",
+    output_expected_dir: str = "tests/output-expected/mha/ProstateX",
+):
+    # setup case with duplicates
+    case = Dicom2MHACase(
+        input_dir=Path(input_dir),
+        patient_id="ProstateX-0001",
+        study_id="07-08-2011",
+        paths=[
+            "ProstateX-0001/07-08-2011/10.000000-t2tsetra-17541",
+            "ProstateX-0001/07-08-2011/6.000000-t2tsetra-76610",
+        ],
+        settings=Dicom2MHASettings(
+            mappings={
+                "t2w": {
+                    "SeriesDescription": [
+                        "t2_tse_tra"
+                    ]
+                },
+            }
+        )
+    )
+
+    # resolve duplicates
+    case.extract_metadata()
+    case.apply_mappings()
+    case.resolve_duplicates()
+
+    # check if duplicates were resolved
+    matched_series = [serie for serie in case.valid_series if "t2w" in serie.mappings]
+    assert len(matched_series) == 1, 'More than one serie after resolving duplicates!'

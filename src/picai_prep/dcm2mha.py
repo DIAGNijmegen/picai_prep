@@ -27,7 +27,8 @@ import SimpleITK as sitk
 from tqdm import tqdm
 
 from picai_prep.data_utils import PathLike, atomic_image_write
-from picai_prep.utilities import (dicom_tags, get_pydicom_value, lower_strip,
+from picai_prep.utilities import (dcm2mha_schema, dicom_tags,
+                                  get_pydicom_value, lower_strip,
                                   make_sitk_readers, metadata_defaults, plural)
 
 
@@ -37,7 +38,7 @@ class SeriesException(Exception):
         super().__init__(message)
 
     def __str__(self):
-         return f'{type(self).__name__}: {", ".join([a for a in self.args])}'
+        return f'{type(self).__name__}: {", ".join([a for a in self.args])}'
 
 
 class MissingDICOMFilesError(SeriesException):
@@ -64,22 +65,23 @@ class ArchiveItemPathNotFoundError(SeriesException):
         super().__init__(f"Provided archive item path not found ({path})")
 
 
+@dataclass
 class Dicom2MHASettings:
-    def __init__(self, mappings: Dict[str, Dict], options: Dict):
-        self.tags = dict()
-        for name, mapping in mappings.items():
-            mappings[name] = self.process_mapping(name, mapping)
-        self.mappings = mappings
+    mappings: Dict[str, Dict] = field(default_factory=dict)  # TODO: add what kind of Dict inside
+    num_threads: int = 4
+    verify_dicom_filenames: bool = True
+    allow_duplicates: bool = False
+    tags: Dict = field(default_factory=dict)  # TODO: add what kind of Dict
 
-        self.num_threads = options.get('num_threads', 4)
-        self.verify_dicom_filenames = options.get('verify_dicom_filenames', True)
-        self.allow_duplicates = options.get('allow_duplicates', False)
-        self.random_seed = options.get('random_seed', None)
+    def __post_init__(self):
+        for name, mapping in self.mappings.items():
+            self.mappings[name] = self._process_mapping(name, mapping)
 
-    def process_mapping(self, name: str, mapping: Dict) -> Dict:
+    def _process_mapping(self, name: str, mapping: Dict) -> Dict:  # TODO: what kind of Dict
+        """TODO: add a docstring"""
         map = dict()
         for key, values in mapping.items():
-            l_key = lower_strip(key)
+            l_key = lower_strip(key)  # TODO: make lower strip optional
             try:
                 # add key to group of metadata we intend to extract from the dicoms
                 self.tags[l_key] = dicom_tags[l_key]
@@ -101,7 +103,7 @@ class Series:
 
     # image metadata
     filenames: Optional[List[str]] = None
-    resolution: Optional[np.ndarray] = None
+    resolution: Optional[float] = None
     metadata: Optional[Dict[str, str]] = field(default_factory=dict)
 
     mappings: List[str] = field(default_factory=list)
@@ -116,7 +118,7 @@ class Series:
         if not self.path.exists():
             raise ArchiveItemPathNotFoundError(self.path)
         if not self.path.is_dir():
-            raise IsADirectoryError(self.path)
+            raise NotADirectoryError(self.path)
 
     @property
     def is_valid(self):
@@ -138,15 +140,15 @@ class Series:
 
     def extract_metadata(self, file_reader: sitk.ImageFileReader, filenames: List[PathLike], tags: Dict[str, str]):
         self.filenames = filenames
-        dicom_slice_path = os.path.join(self.path, filenames[-1])
+        dicom_slice_path = self.path / filenames[-1]
 
         try:
-            file_reader.SetFileName(dicom_slice_path)
+            file_reader.SetFileName(str(dicom_slice_path))
             file_reader.ReadImageInformation()
             self.resolution = np.prod(file_reader.GetSpacing())
             for name, tag in tags.items():
+                # TODO: make lower strip optional
                 self.metadata[name] = lower_strip(file_reader.GetMetaData(tag) if file_reader.HasMetaDataKey(tag) else '')
-            # extracting PatientID and StudyInstanceUID no longer performed as these are now required values
         except Exception as e:
             self.write_log(f"Reading with SimpleITK failed for {self.path} with error: {e}. Attempting with pydicom.")
             try:
@@ -154,7 +156,6 @@ class Series:
                     self.resolution = np.prod(data.PixelSpacing)
                     for name, id in tags.items():
                         self.metadata[name] = lower_strip(get_pydicom_value(data, id))
-                    # extracting PatientID and StudyInstanceUID no longer performed as these are now required values
             except pydicom.errors.InvalidDicomError:
                 e = UnreadableDICOMError(self.path)
                 self.error = e
@@ -165,35 +166,38 @@ class Case:
     pass
 
 
+@dataclass
 class Dicom2MHACase(Case):
-    settings: Dicom2MHASettings = Dicom2MHASettings({}, {})
+    input_dir: Path
+    patient_id: str
+    study_id: str
+    paths: List[PathLike]
+    settings: Dicom2MHASettings
 
-    def __init__(self, input_dir: Path, patient_id: str, study_id: str, paths: List[PathLike]):
-        self.patient_id = patient_id
-        self.study_id = study_id
+    def __post_init__(self):
         self.series: List[Series] = []
-        self._log = [f'Importing {plural(len(paths), "serie")}']
+        self._log = [f'Importing {plural(len(self.paths), "serie")}']
 
         full_paths = set()
-        for path in paths:
-            full_path = input_dir / path
-            serie = Series(full_path, patient_id, study_id)
+        for path in self.paths:
+            full_path = self.input_dir / path
+            serie = Series(full_path, self.patient_id, self.study_id)
             try:
                 if path in full_paths:
                     raise FileExistsError(path)
+                full_paths.add(full_path)
             except Exception as e:
                 serie.error = e
                 logging.error(str(e))
-            else:
-                full_paths.add(full_path)
             finally:
                 self.write_log(f'\t+ ({len(self.series)}) {full_path}')
                 self.series.append(serie)
+
         if not all([serie.is_valid for serie in self.series]):
             self.invalidate()
 
     def __repr__(self):
-        return f'{self.patient_id}/{self.study_id}'
+        return f'Case({self.patient_id}_{self.study_id})'
 
     @property
     def valid_series(self):
@@ -266,7 +270,8 @@ class Dicom2MHACase(Case):
             try:
                 for name, mapping in self.settings.mappings.items():
                     for key, values in mapping.items():
-                        if any(v in serie.metadata[key] for v in values):
+                        # TODO: option for mapping matching... [strict, stripped (lowerstrip()), contains, Callable]
+                        if any(v == serie.metadata[key] for v in values):
                             serie.mappings.append(name)
 
                 if len(serie.mappings) == 0:
@@ -280,11 +285,13 @@ class Dicom2MHACase(Case):
 
     def resolve_duplicates(self):
         self.write_log(f'Resolving duplicates between {plural(len(self.valid_series), "serie")}')
-        np.random.seed(self.settings.random_seed)
 
         # define tiebreakers, which should have: name, value_func, pick_largest
-        tiebreakers = [('slice count', lambda a: len(a.filenames), True),
-                       ('image resolution', lambda a: a.resolution, False)]
+        tiebreakers = [
+            ('slice count', lambda a: len(a.filenames), True),
+            ('image resolution', lambda a: a.resolution, False),
+            ('filename', lambda a: str(a.path), False),
+        ]
 
         # create dict collecting all items for each mapping
         matched_series: Dict[str, List[Series]] = {
@@ -312,14 +319,6 @@ class Dicom2MHACase(Case):
                                 serie.mappings.remove(mapping)
                                 serie.write_log(f'Removed by {name} tiebreaker from "{mapping}"')
                                 series.remove(serie)
-
-                # after tiebreakers there are still candidates, select at random
-                if len(series) > 1:
-                    chosen_serie = np.random.choice(series)
-                    for serie in series:
-                        if serie != chosen_serie:
-                            serie.mappings.remove(mapping)
-                            serie.write_log(f'Removed by random selection from "{mapping}"')
 
     def process_and_write(self, output_dir: Path):
         total = sum([len(serie.mappings) for serie in self.valid_series])
@@ -360,6 +359,7 @@ class Dicom2MHACase(Case):
 
 class Dicom2MHAConverter:
     def __init__(self, input_dir: PathLike, output_dir: PathLike, dcm2mha_settings: Union[PathLike, Dict]):
+        """TODO: add docstring"""
         self.input_dir = Path(input_dir)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -368,30 +368,31 @@ class Dicom2MHAConverter:
             with open(dcm2mha_settings) as fp:
                 dcm2mha_settings = json.load(fp)
 
-        from picai_prep.utilities import dcm2mha_schema
         jsonschema.validate(dcm2mha_settings, dcm2mha_schema, cls=jsonschema.Draft7Validator)
 
-        self.settings = Dicom2MHASettings(dcm2mha_settings.get('mappings', {}), dcm2mha_settings.get('options', {}))
-        self.cases = self._init_cases(dcm2mha_settings.get('archive', {}))
+        self.settings = Dicom2MHASettings(dcm2mha_settings['mappings'], **dcm2mha_settings.get('options', {}))
+        self.cases = self._init_cases(dcm2mha_settings['archive'])
 
         logfile = self.output_dir / f'picai_prep_{datetime.now().strftime("%Y%m%d%H%M%S")}.log'
-        logging.basicConfig(filemode='w', level=logging.INFO, format='%(message)s', filename=logfile)
+        logging.basicConfig(level=logging.INFO, format='%(message)s', filename=logfile)
         logging.info(f'Output directory set to {self.output_dir.absolute().as_posix()}')
-        print(f'Writing log to {logfile}')
+        print(f'Writing log to {logfile.absolute()}')
 
     def _init_cases(self, archive: List[Dict]) -> List[Dicom2MHACase]:
         cases = {}
         for item in archive:
             key = tuple(item[id] for id in metadata_defaults.keys())  # (patient_id, study_id)
             cases[key] = cases.get(key, []) + [item['path']]
-        return [Dicom2MHACase(self.input_dir, patient_id, study_id, paths) for (patient_id, study_id), paths in
-                cases.items()]
+
+        return [
+            Dicom2MHACase(self.input_dir, patient_id, study_id, paths, self.settings)
+            for (patient_id, study_id), paths in cases.items()
+        ]
 
     def convert(self):
         start_time = datetime.now()
         logging.info(f'Program started at {start_time.isoformat()}\n')
 
-        Dicom2MHACase.settings = self.settings
         with ThreadPoolExecutor(max_workers=self.settings.num_threads) as pool:
             futures = {pool.submit(case.convert, self.output_dir): case for case in self.cases}
             for future in tqdm(as_completed(futures), total=len(self.cases)):
@@ -402,16 +403,16 @@ class Dicom2MHAConverter:
         logging.info(f'Program ended at {end_time.isoformat()}\n\t(runtime {end_time - start_time})')
 
 
-def read_image_series(image_series_path: Path):
+def read_image_series(image_series_path: PathLike) -> sitk.Image:
     file_reader, series_reader = make_sitk_readers()
-    dicom_slice_paths = series_reader.GetGDCMSeriesFileNames(image_series_path.as_posix())
+    dicom_slice_paths = series_reader.GetGDCMSeriesFileNames(str(image_series_path))
 
     try:
         series_reader.SetFileNames(dicom_slice_paths)
-        image = series_reader.Execute()
+        image: sitk.Image = series_reader.Execute()
 
         file_reader.SetFileName(dicom_slice_paths[-1])
-        dicom_slice = file_reader.Execute()
+        dicom_slice: sitk.Image = file_reader.Execute()
         for key in dicom_tags.values():
             if dicom_slice.HasMetaDataKey(key) and len(dicom_slice.GetMetaData(key)) > 0:
                 image.SetMetaData(key, dicom_slice.GetMetaData(key))
@@ -428,7 +429,7 @@ def read_image_series(image_series_path: Path):
             image[i, :, :] = s.pixel_array
 
         # convert to SimpleITK
-        image = sitk.GetImageFromArray(image)
+        image: sitk.Image = sitk.GetImageFromArray(image)
         image.SetSpacing(list(slices[0].PixelSpacing) + [slices[0].SliceThickness])
 
         for key in dicom_tags.values():
