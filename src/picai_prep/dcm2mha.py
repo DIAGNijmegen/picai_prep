@@ -26,10 +26,8 @@ import pydicom.errors
 import SimpleITK as sitk
 from tqdm import tqdm
 
-from picai_prep.archive import ArchiveConverter
 from picai_prep.data_utils import PathLike, atomic_image_write
-from picai_prep.utilities import (dicom_tags,
-                                  get_pydicom_value, lower_strip,
+from picai_prep.utilities import (dicom_tags, get_pydicom_value, lower_strip,
                                   make_sitk_readers, metadata_defaults, plural)
 
 
@@ -218,13 +216,12 @@ class Dicom2MHACase(Case):
         log += ['\nSERIES', divider.replace('=', '-')]
         for i, serie in enumerate(self.series):
             log.append(f'({i}) {serie.path.as_posix()}')
-            log.extend([f'\t{l}' for l in serie._log])
+            log.extend([f'\t{item}' for item in serie._log])
             log.append(f'\tFATAL: {serie.error}\n' if not serie.is_valid else '')
         return '\n'.join(log)
 
-    def convert(self, *args):
+    def convert(self, output_dir):
         try:
-            output_dir, = args
             self.extract_metadata()
             self.apply_mappings()
             self.resolve_duplicates()
@@ -283,46 +280,46 @@ class Dicom2MHACase(Case):
 
     def resolve_duplicates(self):
         self.write_log(f'Resolving duplicates between {plural(len(self.valid_series), "serie")}')
-
-        vseries = self.valid_series
-        duplicates: Dict[str, List[int]] = dict()
         np.random.seed(self.settings.random_seed)
 
-        # value_func, largest, msg = tiebreaker
+        # define tiebreakers, which should have: name, value_func, pick_largest
         tiebreakers = [('slice count', lambda a: len(a.filenames), True),
                        ('image resolution', lambda a: a.resolution, False)]
 
         # create dict collecting all items for each mapping
-        for i, serie in enumerate(vseries):
+        matched_series: Dict[str, List[Series]] = {
+            mapping: [] for serie in self.valid_series for mapping in serie.mappings
+        }
+        for serie in self.valid_series:
             for mapping in serie.mappings:
-                duplicates[mapping] = duplicates.get(mapping, []) + [i]
+                matched_series[mapping] += [serie]
 
-        for mapping, group in duplicates.items():
+        # use tiebreakers to select a single item for each mapping
+        for mapping, series in matched_series.items():
             if self.settings.allow_duplicates:
-                for i, n in zip(group, range(len(group))):
-                    vseries[i].mappings.remove(mapping)
-                    vseries[i].mappings.append(f'{mapping}_{n}')
+                for i, serie in enumerate(series):
+                    serie.mappings.remove(mapping)
+                    serie.mappings.append(f'{mapping}_{i}')
             else:
-                for tiebreaker in tiebreakers:
-                    if len(group) > 1:
-                        name, value_func, largest = tiebreaker
-                        competitors = [(i, value_func(vseries[i])) for i in group]
-                        competitors.sort(key=lambda a: a[1], reverse=largest)
-                        best_i, best_v = competitors[0]
+                for name, value_func, pick_largest in tiebreakers:
+                    if len(series) > 1:
+                        serie_value_pairs = [(serie, value_func(serie)) for serie in series]
+                        serie_value_pairs.sort(key=lambda a: a[1], reverse=pick_largest)
+                        _, best_value = serie_value_pairs[0]
 
-                        for i, v in competitors:
-                            if best_v != v:
-                                vseries[i].mappings.remove(mapping)
-                                vseries[i].write_log(f'Removed by {name} tiebreaker from "{mapping}"')
-                                group.remove(i)
+                        for serie, value in serie_value_pairs:
+                            if value != best_value:
+                                serie.mappings.remove(mapping)
+                                serie.write_log(f'Removed by {name} tiebreaker from "{mapping}"')
+                                series.remove(serie)
 
                 # after tiebreakers there are still candidates, select at random
-                if len(group) > 1:
-                    c = np.random.choice(group)
-                    for i in group:
-                        if i != c:
-                            vseries[i].mappings.remove(mapping)
-                            vseries[i].write_log(f'Removed by random selection from "{mapping}"')
+                if len(series) > 1:
+                    chosen_serie = np.random.choice(series)
+                    for serie in series:
+                        if serie != chosen_serie:
+                            serie.mappings.remove(mapping)
+                            serie.write_log(f'Removed by random selection from "{mapping}"')
 
     def process_and_write(self, output_dir: Path):
         total = sum([len(serie.mappings) for serie in self.valid_series])
@@ -379,7 +376,8 @@ class Dicom2MHAConverter:
 
         logfile = self.output_dir / f'picai_prep_{datetime.now().strftime("%Y%m%d%H%M%S")}.log'
         logging.basicConfig(filemode='w', level=logging.INFO, format='%(message)s', filename=logfile)
-        logging.info(f'Output directory set to {self.output_dir.absolute().as_posix()}\n\t(writing log to {logfile})\n')
+        logging.info(f'Output directory set to {self.output_dir.absolute().as_posix()}')
+        print(f'Writing log to {logfile}')
 
     def _init_cases(self, archive: List[Dict]) -> List[Dicom2MHACase]:
         cases = {}
