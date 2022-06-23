@@ -372,8 +372,8 @@ class Dicom2MHAConverter:
 
         jsonschema.validate(dcm2mha_settings, dcm2mha_schema, cls=jsonschema.Draft7Validator)
 
-        self.settings = Dicom2MHASettings(dcm2mha_settings.get('mappings', {}), **dcm2mha_settings.get('options', {}))
-        self.cases = self._init_cases(dcm2mha_settings.get('archive', {}), settings=self.settings)
+        self.settings = Dicom2MHASettings(dcm2mha_settings['mappings'], **dcm2mha_settings.get('options', {}))
+        self.cases = self._init_cases(dcm2mha_settings['archive'], settings=self.settings)
 
         logfile = self.output_dir / f'picai_prep_{datetime.now().strftime("%Y%m%d%H%M%S")}.log'
         logging.basicConfig(level=logging.INFO, format='%(message)s', filename=logfile)
