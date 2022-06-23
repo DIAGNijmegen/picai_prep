@@ -271,7 +271,7 @@ class Dicom2MHACase(Case):
             try:
                 for name, mapping in self.settings.mappings.items():
                     for key, values in mapping.items():
-                        if any(v in serie.metadata[key] for v in values):
+                        if any(v == serie.metadata[key] for v in values):
                             serie.mappings.append(name)
 
                 if len(serie.mappings) == 0:
@@ -377,21 +377,21 @@ class Dicom2MHAConverter:
         jsonschema.validate(dcm2mha_settings, dcm2mha_schema, cls=jsonschema.Draft7Validator)
 
         self.settings = Dicom2MHASettings(dcm2mha_settings.get('mappings', {}), **dcm2mha_settings.get('options', {}))
-        self.cases = self._init_cases(dcm2mha_settings.get('archive', {}))
+        self.cases = self._init_cases(dcm2mha_settings.get('archive', {}), settings=self.settings)
 
         logfile = self.output_dir / f'picai_prep_{datetime.now().strftime("%Y%m%d%H%M%S")}.log'
         logging.basicConfig(level=logging.INFO, format='%(message)s', filename=logfile)
         logging.info(f'Output directory set to {self.output_dir.absolute().as_posix()}')
         print(f'Writing log to {logfile.absolute()}')
 
-    def _init_cases(self, archive: List[Dict]) -> List[Dicom2MHACase]:
+    def _init_cases(self, archive: List[Dict], settings: Dicom2MHASettings) -> List[Dicom2MHACase]:
         cases = {}
         for item in archive:
             key = tuple(item[id] for id in metadata_defaults.keys())  # (patient_id, study_id)
             cases[key] = cases.get(key, []) + [item['path']]
 
         return [
-            Dicom2MHACase(self.input_dir, patient_id, study_id, paths)
+            Dicom2MHACase(self.input_dir, patient_id, study_id, paths, settings)
             for (patient_id, study_id), paths in cases.items()
         ]
 
@@ -399,7 +399,6 @@ class Dicom2MHAConverter:
         start_time = datetime.now()
         logging.info(f'Program started at {start_time.isoformat()}\n')
 
-        Dicom2MHACase.settings = self.settings
         with ThreadPoolExecutor(max_workers=self.settings.num_threads) as pool:
             futures = {pool.submit(case.convert, self.output_dir): case for case in self.cases}
             for future in tqdm(as_completed(futures), total=len(self.cases)):
