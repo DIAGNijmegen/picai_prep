@@ -96,3 +96,78 @@ def test_resolve_duplicates(
     # check if duplicates were resolved
     matched_series = [serie for serie in case.valid_series if "t2w" in serie.mappings]
     assert len(matched_series) == 1, 'More than one serie after resolving duplicates!'
+
+
+def test_value_match_contains(
+    input_dir: str = "tests/input/dcm/ProstateX",
+    patient_id="ProstateX-0001",
+    study_id="07-08-2011",
+):
+    # setup case
+    series_list = os.listdir(os.path.join(input_dir, patient_id, study_id))
+    case = Dicom2MHACase(
+        input_dir=Path(input_dir),
+        patient_id=patient_id,
+        study_id=study_id,
+        paths=[
+            os.path.join(patient_id, study_id, series_id) for series_id in series_list
+            if os.path.isdir(os.path.join(input_dir, patient_id, study_id, series_id))
+        ],
+        settings=Dicom2MHASettings(
+            mappings={
+                "test": {
+                    "SeriesDescription": [
+                        ""
+                    ]
+                },
+            },
+            values_match_func="lower_strip_contains"
+        )
+    )
+
+    # resolve duplicates
+    case.extract_metadata()
+    case.apply_mappings()
+
+    # check if duplicates were resolved
+    matched_series = [serie for serie in case.valid_series if "test" in serie.mappings]
+    assert len(matched_series) == 11, 'Empty lower_strip_contains should match all series!'
+
+
+def test_value_match_multiple_keys(
+    input_dir: str = "tests/input/dcm/ProstateX",
+    patient_id="ProstateX-0001",
+    study_id="07-08-2011",
+):
+    # setup case
+    series_list = os.listdir(os.path.join(input_dir, patient_id, study_id))
+    case = Dicom2MHACase(
+        input_dir=Path(input_dir),
+        patient_id=patient_id,
+        study_id=study_id,
+        paths=[
+            os.path.join(patient_id, study_id, series_id) for series_id in series_list
+            if os.path.isdir(os.path.join(input_dir, patient_id, study_id, series_id))
+        ],
+        settings=Dicom2MHASettings(
+            mappings={
+                "test": {
+                    "SeriesDescription": [
+                        ""
+                    ],
+                    "imagetype": [
+                        "DERIVED\\PRIMARY\\DIFFUSION"
+                    ]
+                },
+            },
+            values_match_func="lower_strip_contains"
+        )
+    )
+
+    # resolve duplicates
+    case.extract_metadata()
+    case.apply_mappings()
+
+    # check if duplicates were resolved
+    matched_series = [serie for serie in case.valid_series if "test" in serie.mappings]
+    assert len(matched_series) == 3, 'Should find three diffusion scans!'
