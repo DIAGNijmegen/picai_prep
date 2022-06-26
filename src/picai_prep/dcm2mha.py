@@ -18,7 +18,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 import jsonschema
 import numpy as np
@@ -71,6 +71,7 @@ class Dicom2MHASettings:
     num_threads: int = 4
     verify_dicom_filenames: bool = True
     allow_duplicates: bool = False
+    values_match_func: Optional[Callable[[str, str], bool]] = None
 
     def __post_init__(self):
         # Validate the mappings
@@ -174,7 +175,11 @@ class Series:
 
         return False
 
-    def apply_mappings(self, mappings: Dict[str, Dict[str, List[str]]], values_match_func=None) -> None:
+    def apply_mappings(
+        self,
+        mappings: Dict[str, Dict[str, List[str]]],
+        values_match_func: Optional[Callable[[str, str], bool]] = None,
+    ) -> None:
         """
         Apply mappings to the series
         """
@@ -292,7 +297,10 @@ class Dicom2MHACase(Case):
 
         for i, serie in enumerate(self.valid_series):
             try:
-                serie.apply_mappings(mappings=self.settings.mappings)
+                serie.apply_mappings(
+                    mappings=self.settings.mappings,
+                    values_match_func=self.settings.values_match_func,
+                )
             except NoMappingsApplyError as e:
                 serie.error = e
                 errors.append(i)
@@ -374,7 +382,12 @@ class Dicom2MHACase(Case):
 
 
 class Dicom2MHAConverter:
-    def __init__(self, input_dir: PathLike, output_dir: PathLike, dcm2mha_settings: Union[PathLike, Dict]):
+    def __init__(self,
+        input_dir: PathLike,
+        output_dir: PathLike,
+        dcm2mha_settings: Union[PathLike, Dict],
+        values_match_func: Optional[Callable[[str, str], bool]] = None,
+    ):
         """TODO: add docstring"""
         self.input_dir = Path(input_dir)
         self.output_dir = Path(output_dir)
@@ -386,7 +399,11 @@ class Dicom2MHAConverter:
 
         jsonschema.validate(dcm2mha_settings, dcm2mha_schema, cls=jsonschema.Draft7Validator)
 
-        self.settings = Dicom2MHASettings(dcm2mha_settings['mappings'], **dcm2mha_settings.get('options', {}))
+        self.settings = Dicom2MHASettings(
+            mappings=dcm2mha_settings['mappings'],
+            values_match_func=values_match_func,
+            **dcm2mha_settings.get('options', {})
+        )
         self.cases = self._init_cases(dcm2mha_settings['archive'])
 
         logfile = self.output_dir / f'picai_prep_{datetime.now().strftime("%Y%m%d%H%M%S")}.log'
