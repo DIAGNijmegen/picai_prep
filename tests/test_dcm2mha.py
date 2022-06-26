@@ -67,8 +67,6 @@ def test_dcm2mha(
 
 def test_resolve_duplicates(
     input_dir: str = "tests/input/dcm/ProstateX",
-    output_dir: str = "tests/output/mha/ProstateX",
-    output_expected_dir: str = "tests/output-expected/mha/ProstateX",
 ):
     # setup case with duplicates
     case = Dicom2MHACase(
