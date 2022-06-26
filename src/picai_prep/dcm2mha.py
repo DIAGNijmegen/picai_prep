@@ -164,32 +164,13 @@ class Series:
         self.write_log('Extracted metadata')
 
     @staticmethod
-    def values_match(needle: str, haystack: str, lower=True, strip=True, matching="eq") -> bool:
-        """
-        Check if two values match
-
-        Parameters
-        ----------
-        - lower: case insensitive matching
-        - strip: trim whitespace from edges
-        - matching: eq for equality, contains for needle in haystack
-
-        Returns
-        -------
-        - True if values match, False otherwise
-        """
-        if lower:
-            needle = needle.lower()
-            haystack = haystack.lower()
-        if strip:
-            needle = needle.strip()
-            haystack = haystack.strip()
-        if matching == "eq":
-            if needle == haystack:
-                return True
-        elif matching == "contains":
-            if needle in haystack:
-                return True
+    def values_match(needle: str, haystack: str, matching="eq") -> bool:
+        needle = lower_strip(needle)
+        haystack = lower_strip(haystack)
+        if matching == "eq" and needle == haystack:
+            return True
+        elif matching == "contains" and needle in haystack:
+            return True
 
         return False
 
