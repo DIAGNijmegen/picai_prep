@@ -197,16 +197,12 @@ class Series:
 
         for name, mapping in mappings.items():
             for key, values in mapping.items():
-                if key not in self.metadata and lower_strip(key) in dicom_tags:
-                    key = dicom_tags[lower_strip(key)]
-                if key not in self.metadata and "|" in key:
-                    key = key.replace("|", "").upper()
+                key = lower_strip(key)
                 if key not in self.metadata:
                     # metadata does not contain the information we need
                     continue
 
                 # check if allowed values match the observed value
-                print(f"Looking for {values} in {self.metadata[key]}")
                 if any(values_match_func(needle=value, haystack=self.metadata[key]) for value in values):
                     self.mappings.append(name)
 
@@ -296,7 +292,6 @@ class Dicom2MHACase(Case):
         for i, serie in enumerate(self.valid_series):
             try:
                 serie.extract_metadata(
-                    tags=self.settings.mappings,
                     verify_dicom_filenames=self.settings.verify_dicom_filenames
                 )
             except (MissingDICOMFilesError, UnreadableDICOMError) as e:
