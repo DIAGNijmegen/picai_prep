@@ -240,7 +240,7 @@ class Dicom2MHACase(Case):
             return self.compile_log()
 
     def extract_metadata(self):
-        self.write_log(f'Extracting metadata from {plural(self.valid_series, "serie")}')
+        self.write_log(f'Extracting metadata from {plural(len(self.valid_series), "serie")}')
         errors = []
 
         for i, serie in enumerate(self.valid_series):
@@ -256,8 +256,7 @@ class Dicom2MHACase(Case):
         self.write_log(f'\t({plural(len(errors), "error")}{f" {errors}" if len(errors) > 0 else ""})')
 
     def apply_mappings(self):
-        vseries = len(self.valid_series)
-        self.write_log(f'Applying mappings to {vseries} series')
+        self.write_log(f'Applying mappings to {len(self.valid_series)} series')
         errors = []
 
         for i, serie in enumerate(self.valid_series):
