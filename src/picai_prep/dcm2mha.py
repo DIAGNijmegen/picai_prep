@@ -155,6 +155,57 @@ class Series:
 
         self.write_log('Extracted metadata')
 
+    @staticmethod
+    def values_match(needle: str, haystack: str, lower=True, strip=True, matching="eq") -> bool:
+        """
+        Check if two values match
+
+        Parameters
+        ----------
+        - lower: ignore case
+        - strip: trim whitespace from edges
+        """
+        if lower:
+            needle = needle.lower()
+            haystack = haystack.lower()
+        if strip:
+            needle = needle.strip()
+            haystack = haystack.strip()
+        if matching == "eq":
+            if needle == haystack:
+                return True
+        elif matching == "contains":
+            if needle in haystack:
+                return True
+
+        return False
+
+    def apply_mappings(self, mappings: Dict[str, Dict[str, List[str]]], values_match_func=None) -> None:
+        """
+        Apply mappings to the series
+        """
+        if values_match_func is None:
+            values_match_func = self.values_match
+
+        for name, mapping in mappings.items():
+            for key, values in mapping.items():
+                if key not in self.metadata and lower_strip(key) in dicom_tags:
+                    key = dicom_tags[lower_strip(key)]
+                if key not in self.metadata and "|" in key:
+                    key = key.replace("|", "").upper()
+                if key not in self.metadata:
+                    # metadata does not contain the information we need
+                    continue
+
+                # check if allowed values match the observed value
+                print(f"Looking for {values} in {self.metadata[key]}")
+                if any(values_match_func(needle=value, haystack=self.metadata[key]) for value in values):
+                    self.mappings.append(name)
+
+        if len(self.mappings) == 0:
+            raise NoMappingsApplyError()
+        self.write_log(f'Applied mappings [{", ".join(self.mappings)}]')
+
 
 class Case:
     pass
@@ -251,15 +302,7 @@ class Dicom2MHACase(Case):
 
         for i, serie in enumerate(self.valid_series):
             try:
-                for name, mapping in self.settings.mappings.items():
-                    for key, values in mapping.items():
-                        # TODO: option for mapping matching... [strict, stripped (lowerstrip()), contains, Callable]
-                        if any(v == serie.metadata[key] for v in values):
-                            serie.mappings.append(name)
-
-                if len(serie.mappings) == 0:
-                    raise NoMappingsApplyError()
-                serie.write_log(f'Applied mappings [{", ".join(serie.mappings)}]')
+                serie.apply_mappings(mappings=self.settings.mappings)
             except NoMappingsApplyError as e:
                 serie.error = e
                 errors.append(i)
