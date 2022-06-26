@@ -170,8 +170,13 @@ class Series:
 
         Parameters
         ----------
-        - lower: ignore case
+        - lower: case insensitive matching
         - strip: trim whitespace from edges
+        - matching: eq for equality, contains for needle in haystack
+
+        Returns
+        -------
+        - True if values match, False otherwise
         """
         if lower:
             needle = needle.lower()
