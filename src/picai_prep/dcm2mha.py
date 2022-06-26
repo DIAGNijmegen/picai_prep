@@ -125,7 +125,7 @@ class Series:
             raise MissingDICOMFilesError(self.path)
         return True
 
-    def extract_metadata(self, verify_dicom_filenames: bool = True) -> None:
+    def extract_metadata(self, tags: Dict[str, str], verify_dicom_filenames: bool = True) -> None:
         """
         Verify DICOM slices and extract metadata from the last DICOM slice
         """
@@ -144,14 +144,23 @@ class Series:
         dicom_slice_path = self.path / self.filenames[-1]
 
         try:
-            # read metadata from DICOM slice
-            ds = pydicom.dcmread(dicom_slice_path, stop_before_pixels=True)
-            self.metadata = ds.to_json_dict()
-            self.resolution = ds.PixelSpacing
-        except pydicom.errors.InvalidDicomError:
-            e = UnreadableDICOMError(self.path)
-            self.error = e
-            logging.error(str(e))
+            file_reader.SetFileName(str(dicom_slice_path))
+            file_reader.ReadImageInformation()
+            self.resolution = np.prod(file_reader.GetSpacing())
+            for name, tag in tags.items():
+                self.metadata[name] = file_reader.GetMetaData(tag) if file_reader.HasMetaDataKey(tag) else ''
+            print(dicom_slice_path, self.metadata)
+        except Exception as e:
+            self.write_log(f"Reading with SimpleITK failed for {self.path} with error: {e}. Attempting with pydicom.")
+            try:
+                with pydicom.dcmread(dicom_slice_path) as data:
+                    self.resolution = np.prod(data.PixelSpacing)
+                    for name, id in tags.items():
+                        self.metadata[name] = get_pydicom_value(data, id)
+            except pydicom.errors.InvalidDicomError:
+                e = UnreadableDICOMError(self.path)
+                self.error = e
+                logging.error(str(e))
 
         self.write_log('Extracted metadata')
 
@@ -288,6 +297,7 @@ class Dicom2MHACase(Case):
         for i, serie in enumerate(self.valid_series):
             try:
                 serie.extract_metadata(
+                    tags=self.settings.mappings,
                     verify_dicom_filenames=self.settings.verify_dicom_filenames
                 )
             except (MissingDICOMFilesError, UnreadableDICOMError) as e:
