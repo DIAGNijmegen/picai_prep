@@ -14,6 +14,7 @@
 import json
 import logging
 import os
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -211,6 +212,9 @@ class Series:
         elif values_match_func == "lower_strip_contains":
             def values_match_func(needle, haystack):
                 return lower_strip(needle) in lower_strip(haystack)
+        elif values_match_func == "lower_strip_regex":
+            def values_match_func(needle, haystack):
+                return re.search(lower_strip(needle), lower_strip(haystack)) is not None
         elif isinstance(values_match_func, str):
             raise ValueError(f"Invalid values_match_func: {values_match_func}")
 
