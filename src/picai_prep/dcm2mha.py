@@ -76,6 +76,7 @@ class Dicom2MHASettings:
     verify_dicom_filenames: bool = True
     allow_duplicates: bool = False
     metadata_match_func: Optional[Callable[[Metadata, Mappings], bool]] = None
+    values_match_func: Union[str, Callable[[str, str], bool]] = "lower_strip_equal"
 
     def __post_init__(self):
         # Validate the mappings
@@ -169,20 +170,15 @@ class Series:
         self.write_log('Extracted metadata')
 
     @staticmethod
-    def metadata_matches(metadata: Metadata, mapping: Mapping, matching="eq") -> bool:
+    def metadata_matches(
+        metadata: Metadata,
+        mapping: Mapping,
+        values_match_func: Callable[[str, str], bool],
+    ) -> bool:
         """
         Determine whether Series' metadata matches the mapping.
         By default, values are trimmed from whitespace and case-insensitively compared.
         """
-        def values_match(needle, haystack):
-            needle = lower_strip(needle)
-            haystack = lower_strip(haystack)
-            if matching == "eq" and needle == haystack:
-                return True
-            elif matching == "contains" and needle in haystack:
-                return True
-            return False
-
         for dicom_tag, allowed_values in mapping.items():
             dicom_tag = lower_strip(dicom_tag)
             if dicom_tag not in metadata:
@@ -190,7 +186,7 @@ class Series:
                 return False
 
             # check if observed value is in the list of allowed values
-            if not any(values_match(needle=value, haystack=metadata[dicom_tag]) for value in allowed_values):
+            if not any(values_match_func(needle=value, haystack=metadata[dicom_tag]) for value in allowed_values):
                 return False
 
         return True
@@ -199,15 +195,27 @@ class Series:
         self,
         mappings: Mappings,
         metadata_match_func: Optional[Callable[[Metadata, Mappings], bool]] = None,
+        values_match_func: Optional[Callable[[str, str], bool]] = None,
     ) -> None:
         """
         Apply mappings to the series
         """
+        # resolve metadata match function
         if metadata_match_func is None:
             metadata_match_func = self.metadata_matches
 
+        # resolve value match function
+        if values_match_func == "lower_strip_equal":
+            def values_match_func(needle, haystack):
+                return lower_strip(needle) == lower_strip(haystack)
+        elif values_match_func == "lower_strip_contains":
+            def values_match_func(needle, haystack):
+                return lower_strip(needle) in lower_strip(haystack)
+        elif isinstance(values_match_func, str):
+            raise ValueError(f"Invalid values_match_func: {values_match_func}")
+
         for name, mapping in mappings.items():
-            if metadata_match_func(metadata=self.metadata, mapping=mapping):
+            if metadata_match_func(metadata=self.metadata, mapping=mapping, values_match_func=values_match_func):
                 self.mappings.append(name)
 
         if len(self.mappings) == 0:
@@ -313,6 +321,7 @@ class Dicom2MHACase(Case):
                 serie.apply_mappings(
                     mappings=self.settings.mappings,
                     metadata_match_func=self.settings.metadata_match_func,
+                    values_match_func=self.settings.values_match_func,
                 )
             except NoMappingsApplyError as e:
                 serie.error = e
