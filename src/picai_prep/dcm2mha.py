@@ -240,11 +240,9 @@ class Dicom2MHACase(Case):
             return self.compile_log()
 
     def extract_metadata(self):
-        vseries = len(self.valid_series)
-        self.write_log(f'Extracting metadata from {plural(vseries, "serie")}')
+        self.write_log(f'Extracting metadata from {plural(self.valid_series, "serie")}')
         errors = []
 
-        file_reader, series_reader = make_sitk_readers()
         for i, serie in enumerate(self.valid_series):
             try:
                 serie.extract_metadata(
