@@ -31,6 +31,10 @@ from picai_prep.utilities import (dcm2mha_schema, dicom_tags,
                                   get_pydicom_value, lower_strip,
                                   make_sitk_readers, metadata_defaults, plural)
 
+Metadata = Dict[str, str]
+Mapping = Dict[str, List[str]]
+Mappings = Dict[str, Mapping]
+
 
 class SeriesException(Exception):
     """Base Exception for errors in an item (series within a case)"""
@@ -71,7 +75,7 @@ class Dicom2MHASettings:
     num_threads: int = 4
     verify_dicom_filenames: bool = True
     allow_duplicates: bool = False
-    values_match_func: Optional[Callable[[str, str], bool]] = None
+    metadata_match_func: Optional[Callable[[Metadata, Mappings], bool]] = None
 
     def __post_init__(self):
         # Validate the mappings
@@ -92,7 +96,7 @@ class Series:
     # image metadata
     filenames: Optional[List[str]] = None
     resolution: Optional[float] = None
-    metadata: Optional[Dict[str, str]] = field(default_factory=dict)
+    metadata: Optional[Metadata] = field(default_factory=dict)
 
     mappings: List[str] = field(default_factory=list)
 
@@ -165,37 +169,46 @@ class Series:
         self.write_log('Extracted metadata')
 
     @staticmethod
-    def values_match(needle: str, haystack: str, matching="eq") -> bool:
-        needle = lower_strip(needle)
-        haystack = lower_strip(haystack)
-        if matching == "eq" and needle == haystack:
-            return True
-        elif matching == "contains" and needle in haystack:
-            return True
+    def metadata_matches(metadata: Metadata, mapping: Mapping, matching="eq") -> bool:
+        """
+        Determine whether Series' metadata matches the mapping.
+        By default, values are trimmed from whitespace and case-insensitively compared.
+        """
+        def values_match(needle, haystack):
+            needle = lower_strip(needle)
+            haystack = lower_strip(haystack)
+            if matching == "eq" and needle == haystack:
+                return True
+            elif matching == "contains" and needle in haystack:
+                return True
+            return False
 
-        return False
+        for dicom_tag, allowed_values in mapping.items():
+            dicom_tag = lower_strip(dicom_tag)
+            if dicom_tag not in metadata:
+                # metadata does not contain the information we need
+                return False
+
+            # check if observed value is in the list of allowed values
+            if not any(values_match(needle=value, haystack=metadata[dicom_tag]) for value in allowed_values):
+                return False
+
+        return True
 
     def apply_mappings(
         self,
-        mappings: Dict[str, Dict[str, List[str]]],
-        values_match_func: Optional[Callable[[str, str], bool]] = None,
+        mappings: Mappings,
+        metadata_match_func: Optional[Callable[[Metadata, Mappings], bool]] = None,
     ) -> None:
         """
         Apply mappings to the series
         """
-        if values_match_func is None:
-            values_match_func = self.values_match
+        if metadata_match_func is None:
+            metadata_match_func = self.metadata_matches
 
         for name, mapping in mappings.items():
-            for key, values in mapping.items():
-                key = lower_strip(key)
-                if key not in self.metadata:
-                    # metadata does not contain the information we need
-                    continue
-
-                # check if allowed values match the observed value
-                if any(values_match_func(needle=value, haystack=self.metadata[key]) for value in values):
-                    self.mappings.append(name)
+            if metadata_match_func(metadata=self.metadata, mapping=mapping):
+                self.mappings.append(name)
 
         if len(self.mappings) == 0:
             raise NoMappingsApplyError()
@@ -299,7 +312,7 @@ class Dicom2MHACase(Case):
             try:
                 serie.apply_mappings(
                     mappings=self.settings.mappings,
-                    values_match_func=self.settings.values_match_func,
+                    metadata_match_func=self.settings.metadata_match_func,
                 )
             except NoMappingsApplyError as e:
                 serie.error = e
@@ -382,11 +395,12 @@ class Dicom2MHACase(Case):
 
 
 class Dicom2MHAConverter:
-    def __init__(self,
+    def __init__(
+        self,
         input_dir: PathLike,
         output_dir: PathLike,
         dcm2mha_settings: Union[PathLike, Dict],
-        values_match_func: Optional[Callable[[str, str], bool]] = None,
+        metadata_match_func: Optional[Callable[[Metadata, Mappings], bool]] = None,
     ):
         """TODO: add docstring"""
         self.input_dir = Path(input_dir)
@@ -401,7 +415,7 @@ class Dicom2MHAConverter:
 
         self.settings = Dicom2MHASettings(
             mappings=dcm2mha_settings['mappings'],
-            values_match_func=values_match_func,
+            metadata_match_func=metadata_match_func,
             **dcm2mha_settings.get('options', {})
         )
         self.cases = self._init_cases(dcm2mha_settings['archive'])
