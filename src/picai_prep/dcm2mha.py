@@ -67,32 +67,19 @@ class ArchiveItemPathNotFoundError(SeriesException):
 
 @dataclass
 class Dicom2MHASettings:
-    mappings: Dict[str, Dict] = field(default_factory=dict)  # TODO: add what kind of Dict inside
+    mappings: Dict[str, Dict[str, List[str]]] = field(default_factory=dict)
     num_threads: int = 4
     verify_dicom_filenames: bool = True
     allow_duplicates: bool = False
-    tags: Dict = field(default_factory=dict)  # TODO: add what kind of Dict
 
     def __post_init__(self):
-        for name, mapping in self.mappings.items():
-            self.mappings[name] = self._process_mapping(name, mapping)
-
-    def _process_mapping(self, name: str, mapping: Dict) -> Dict:  # TODO: what kind of Dict
-        """TODO: add a docstring"""
-        map = dict()
-        for key, values in mapping.items():
-            l_key = lower_strip(key)  # TODO: make lower strip optional
-            try:
-                # add key to group of metadata we intend to extract from the dicoms
-                self.tags[l_key] = dicom_tags[l_key]
-
-                if len(values) == 0 or any(not isinstance(v, str) for v in values):
-                    raise ValueError(f"Invalid non-string elements found in {name}/{key} mapping")
-
-                map[l_key] = [lower_strip(v) for v in values]
-            except KeyError:
-                raise KeyError(f"Invalid key '{l_key}' in '{name}' mapping, see picai_prep/resources/dicom_tags.py for valid keys.")
-        return map
+        # Validate the mappings
+        for mapping_name, mapping in self.mappings.items():
+            for key, values in mapping.items():
+                if not isinstance(values, list):
+                    raise ValueError(f'Mapping {mapping_name} has non-list values for key {key}: {values}')
+                if not all([isinstance(value, str) for value in values]):
+                    raise ValueError(f'Mapping {mapping_name} has non-string value for key {key}: {values}')
 
 
 @dataclass
