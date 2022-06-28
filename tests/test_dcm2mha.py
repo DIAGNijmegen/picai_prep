@@ -141,16 +141,23 @@ def test_value_match_multiple_keys(
 ):
     # setup case
     series_list = os.listdir(os.path.join(input_dir, patient_id, study_id))
-    case = Dicom2MHACase(
+    paths = [
+        os.path.join(patient_id, study_id, series_id) for series_id in series_list
+        if os.path.isdir(os.path.join(input_dir, patient_id, study_id, series_id))
+    ]
+    archive = Dicom2MHAConverter(
         input_dir=Path(input_dir),
-        patient_id=patient_id,
-        study_id=study_id,
-        paths=[
-            os.path.join(patient_id, study_id, series_id) for series_id in series_list
-            if os.path.isdir(os.path.join(input_dir, patient_id, study_id, series_id))
-        ],
-        settings=Dicom2MHASettings(
-            mappings={
+        output_dir="",
+        dcm2mha_settings={
+            "archive": [
+                {
+                    "patient_id": patient_id,
+                    "study_id": study_id,
+                    "path": path
+                }
+                for path in paths
+            ],
+            "mappings": {
                 "test": {
                     "SeriesDescription": [
                         ""
@@ -160,9 +167,13 @@ def test_value_match_multiple_keys(
                     ]
                 },
             },
-            values_match_func="lower_strip_contains"
-        )
+            "options": {
+                "values_match_func": "lower_strip_contains"
+            }
+        }
     )
+
+    case = archive.cases[0]
 
     # resolve duplicates
     case.extract_metadata()

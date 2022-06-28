@@ -72,12 +72,12 @@ class ArchiveItemPathNotFoundError(SeriesException):
 
 @dataclass
 class Dicom2MHASettings:
-    mappings: Dict[str, Dict[str, List[str]]] = field(default_factory=dict)
+    mappings: Dict[str, Dict[str, List[str]]]
     num_threads: int = 4
     verify_dicom_filenames: bool = True
     allow_duplicates: bool = False
     metadata_match_func: Optional[Callable[[Metadata, Mappings], bool]] = None
-    values_match_func: Union[str, Callable[[str, str], bool]] = "lower_strip_equal"
+    values_match_func: Union[str, Callable[[str, str], bool]] = "lower_strip_equals"
 
     def __post_init__(self):
         # Validate the mappings
@@ -419,25 +419,49 @@ class Dicom2MHAConverter:
         self,
         input_dir: PathLike,
         output_dir: PathLike,
-        dcm2mha_settings: Union[PathLike, Dict],
-        metadata_match_func: Optional[Callable[[Metadata, Mappings], bool]] = None,
+        dcm2mha_settings: Union[PathLike, Dict] = None,
     ):
-        """TODO: add docstring"""
+        """
+        Parameters
+        ----------
+        - input_dir: path to the DICOM archive. Used as base path for the relative paths
+            of the archive items.
+        - output_dir: path to store the MHA archive.
+        - dcm2mha_settings: object with mappings, cases and optional parameters. May be
+            a dictionary containing `mappings`, `archive`, and optionally `options`,
+            or a path to a JSON file with these elements.
+            - mappings: criteria to map DICOM sequences to their MHA counterparts
+            - cases: list of DICOM sequences in the DICOM archive. Each case should contain:
+                - patient_id: unique patient identifier
+                - study_id: unique study identifier
+                - path: path to DICOM sequence.
+            - options: (optional)
+                - num_threads: number of multithreading threads. Default: 4.
+                - verify_dicom_filenames: whether to check if DICOM filenames contain consequtive
+                    numbers. Default: True
+                - allow_duplicates: whether multiple DICOM series can map to the same MHA postfix.
+                    Default: False
+                - metadata_match_func: method to match DICOM metadata to MHA sequences. Only use
+                    this if you know what you're doing.
+                - values_match_func: criterium to consider two values a match, when comparing the
+                    value from the DICOM metadata against the provided allowed vaues in the mapping.
+
+        """
         self.input_dir = Path(input_dir)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
+        # parse settings
         if isinstance(dcm2mha_settings, (Path, str)):
             with open(dcm2mha_settings) as fp:
                 dcm2mha_settings = json.load(fp)
 
         jsonschema.validate(dcm2mha_settings, dcm2mha_schema, cls=jsonschema.Draft7Validator)
-
         self.settings = Dicom2MHASettings(
             mappings=dcm2mha_settings['mappings'],
-            metadata_match_func=metadata_match_func,
             **dcm2mha_settings.get('options', {})
         )
+
         self.cases = self._init_cases(dcm2mha_settings['archive'])
 
         logfile = self.output_dir / f'picai_prep_{datetime.now().strftime("%Y%m%d%H%M%S")}.log'
