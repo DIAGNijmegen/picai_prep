@@ -206,17 +206,24 @@ class Series:
             metadata_match_func = self.metadata_matches
 
         # resolve value match function
-        if values_match_func == "lower_strip_equal":
-            def values_match_func(needle, haystack):
-                return lower_strip(needle) == lower_strip(haystack)
-        elif values_match_func == "lower_strip_contains":
-            def values_match_func(needle, haystack):
-                return lower_strip(needle) in lower_strip(haystack)
-        elif values_match_func == "lower_strip_regex":
-            def values_match_func(needle, haystack):
-                return re.search(lower_strip(needle), lower_strip(haystack)) is not None
-        elif isinstance(values_match_func, str):
-            raise ValueError(f"Invalid values_match_func: {values_match_func}")
+        if isinstance(values_match_func, str):
+            variant = values_match_func
+
+            def values_match_func(needle: str, haystack: str) -> bool:
+                if "lower" in variant:
+                    needle = needle.lower()
+                    haystack = haystack.lower()
+                if "strip" in variant:
+                    needle = needle.strip()
+                    haystack = haystack.strip()
+                if "equals" in variant:
+                    return needle == haystack
+                elif "contains" in variant:
+                    return needle in haystack
+                elif "regex" in variant:
+                    return re.search(needle, haystack) is not None
+                else:
+                    raise ValueError(f'Unknown values match function variant {variant}')
 
         for name, mapping in mappings.items():
             if metadata_match_func(metadata=self.metadata, mapping=mapping, values_match_func=values_match_func):
