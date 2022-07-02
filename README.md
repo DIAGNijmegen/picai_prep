@@ -13,7 +13,7 @@ Note: the [`MHA Archive` → `nnU-Net Raw Data Archive`][mha2nnunet] conversion 
 ## Installation
 `picai_prep` is pip-installable:
 
-`pip install git+https://github.com/DIAGNijmegen/picai_prep`
+`pip install https://github.com/DIAGNijmegen/picai_prep/archive/refs/tags/v1.3.2.zip`
 
 ## Usage
 Our preprocessing pipeline consists of four independent stages: [`DICOM Archive`][dicom-archive] → [`MHA Archive`][mha-archive] → [`nnU-Net Raw Data Archive`][nnunet-archive] → [`nnDetection Raw Data Archive`][nndetection-archive]. All three conversion steps between these four stages can be performed independently. See below for documentation on each step.
