@@ -54,9 +54,9 @@ Using this configuration file, the [`DICOM Archive`][dicom-archive] → [`MHA Ar
 from picai_prep import Dicom2MHAConverter
 
 archive = Dicom2MHAConverter(
-    input_path="/input/path/to/dicom/archive",
-    output_path="/output/path/to/mha/archive",
-    settings_path="/path/to/dcm2mha_settings.json",
+    input_dir="/input/path/to/dicom/archive",
+    output_dir="/output/path/to/mha/archive",
+    dcm2mha_settings="/path/to/dcm2mha_settings.json",
 )
 archive.convert()
 ```

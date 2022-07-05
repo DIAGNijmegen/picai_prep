@@ -14,11 +14,12 @@
 import json
 import logging
 import os
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 import jsonschema
 import numpy as np
@@ -30,6 +31,10 @@ from picai_prep.data_utils import PathLike, atomic_image_write
 from picai_prep.utilities import (dcm2mha_schema, dicom_tags,
                                   get_pydicom_value, lower_strip,
                                   make_sitk_readers, metadata_defaults, plural)
+
+Metadata = Dict[str, str]
+Mapping = Dict[str, List[str]]
+Mappings = Dict[str, Mapping]
 
 
 class SeriesException(Exception):
@@ -67,32 +72,21 @@ class ArchiveItemPathNotFoundError(SeriesException):
 
 @dataclass
 class Dicom2MHASettings:
-    mappings: Dict[str, Dict] = field(default_factory=dict)  # TODO: add what kind of Dict inside
+    mappings: Dict[str, Dict[str, List[str]]]
     num_threads: int = 4
     verify_dicom_filenames: bool = True
     allow_duplicates: bool = False
-    tags: Dict = field(default_factory=dict)  # TODO: add what kind of Dict
+    metadata_match_func: Optional[Callable[[Metadata, Mappings], bool]] = None
+    values_match_func: Union[str, Callable[[str, str], bool]] = "lower_strip_equals"
 
     def __post_init__(self):
-        for name, mapping in self.mappings.items():
-            self.mappings[name] = self._process_mapping(name, mapping)
-
-    def _process_mapping(self, name: str, mapping: Dict) -> Dict:  # TODO: what kind of Dict
-        """TODO: add a docstring"""
-        map = dict()
-        for key, values in mapping.items():
-            l_key = lower_strip(key)  # TODO: make lower strip optional
-            try:
-                # add key to group of metadata we intend to extract from the dicoms
-                self.tags[l_key] = dicom_tags[l_key]
-
-                if len(values) == 0 or any(not isinstance(v, str) for v in values):
-                    raise ValueError(f"Invalid non-string elements found in {name}/{key} mapping")
-
-                map[l_key] = [lower_strip(v) for v in values]
-            except KeyError:
-                raise KeyError(f"Invalid key '{l_key}' in '{name}' mapping, see picai_prep/resources/dicom_tags.py for valid keys.")
-        return map
+        # Validate the mappings
+        for mapping_name, mapping in self.mappings.items():
+            for key, values in mapping.items():
+                if not isinstance(values, list):
+                    raise ValueError(f'Mapping {mapping_name} has non-list values for key {key}: {values}')
+                if not all([isinstance(value, str) for value in values]):
+                    raise ValueError(f'Mapping {mapping_name} has non-string value for key {key}: {values}')
 
 
 @dataclass
@@ -104,7 +98,7 @@ class Series:
     # image metadata
     filenames: Optional[List[str]] = None
     resolution: Optional[float] = None
-    metadata: Optional[Dict[str, str]] = field(default_factory=dict)
+    metadata: Optional[Metadata] = field(default_factory=dict)
 
     mappings: List[str] = field(default_factory=list)
 
@@ -138,28 +132,106 @@ class Series:
             raise MissingDICOMFilesError(self.path)
         return True
 
-    def extract_metadata(self, file_reader: sitk.ImageFileReader, filenames: List[PathLike], tags: Dict[str, str]):
-        self.filenames = filenames
-        dicom_slice_path = self.path / filenames[-1]
+    def extract_metadata(self, verify_dicom_filenames: bool = True) -> None:
+        """
+        Verify DICOM slices and extract metadata from the last DICOM slice
+        """
+        file_reader, series_reader = make_sitk_readers()
+        self.filenames = [os.path.basename(dcm) for dcm in series_reader.GetGDCMSeriesFileNames(str(self.path))]
+
+        # verify DICOM files are found
+        if len(self.filenames) == 0:
+            raise MissingDICOMFilesError(self.path)
+
+        if verify_dicom_filenames:
+            # verify DICOM filenames have increasing numbers, with no gaps
+            self.verify_dicom_filenames(self.filenames)
+
+        # extract metadata from last DICOM slice
+        dicom_slice_path = self.path / self.filenames[-1]
 
         try:
             file_reader.SetFileName(str(dicom_slice_path))
             file_reader.ReadImageInformation()
             self.resolution = np.prod(file_reader.GetSpacing())
-            for name, tag in tags.items():
-                # TODO: make lower strip optional
-                self.metadata[name] = lower_strip(file_reader.GetMetaData(tag) if file_reader.HasMetaDataKey(tag) else '')
+            for name, key in dicom_tags.items():
+                self.metadata[name] = file_reader.GetMetaData(key) if file_reader.HasMetaDataKey(key) else ''
         except Exception as e:
             self.write_log(f"Reading with SimpleITK failed for {self.path} with error: {e}. Attempting with pydicom.")
             try:
                 with pydicom.dcmread(dicom_slice_path) as data:
                     self.resolution = np.prod(data.PixelSpacing)
-                    for name, id in tags.items():
-                        self.metadata[name] = lower_strip(get_pydicom_value(data, id))
+                    for name, key in dicom_tags.items():
+                        self.metadata[name] = get_pydicom_value(data, key)
             except pydicom.errors.InvalidDicomError:
                 e = UnreadableDICOMError(self.path)
                 self.error = e
                 logging.error(str(e))
+
+        self.write_log('Extracted metadata')
+
+    @staticmethod
+    def metadata_matches(
+        metadata: Metadata,
+        mapping: Mapping,
+        values_match_func: Callable[[str, str], bool],
+    ) -> bool:
+        """
+        Determine whether Series' metadata matches the mapping.
+        By default, values are trimmed from whitespace and case-insensitively compared.
+        """
+        for dicom_tag, allowed_values in mapping.items():
+            dicom_tag = lower_strip(dicom_tag)
+            if dicom_tag not in metadata:
+                # metadata does not contain the information we need
+                return False
+
+            # check if observed value is in the list of allowed values
+            if not any(values_match_func(needle=value, haystack=metadata[dicom_tag]) for value in allowed_values):
+                return False
+
+        return True
+
+    def apply_mappings(
+        self,
+        mappings: Mappings,
+        metadata_match_func: Optional[Callable[[Metadata, Mappings], bool]] = None,
+        values_match_func: Optional[Callable[[str, str], bool]] = None,
+    ) -> None:
+        """
+        Apply mappings to the series
+        """
+        # resolve metadata match function
+        if metadata_match_func is None:
+            metadata_match_func = self.metadata_matches
+
+        # resolve value match function
+        if isinstance(values_match_func, str):
+            variant = values_match_func
+
+            def values_match_func(needle: str, haystack: str) -> bool:
+                if "lower" in variant:
+                    needle = needle.lower()
+                    haystack = haystack.lower()
+                if "strip" in variant:
+                    needle = needle.strip()
+                    haystack = haystack.strip()
+                if "equals" in variant:
+                    return needle == haystack
+                elif "contains" in variant:
+                    return needle in haystack
+                elif "regex" in variant:
+                    return re.search(needle, haystack) is not None
+                else:
+                    raise ValueError(f'Unknown values match function variant {variant}')
+
+        for name, mapping in mappings.items():
+            if metadata_match_func(metadata=self.metadata, mapping=mapping, values_match_func=values_match_func):
+                self.mappings.append(name)
+
+        if len(self.mappings) == 0:
+            raise NoMappingsApplyError()
+        self.write_log(f'Applied mappings [{", ".join(self.mappings)}]')
 
 
 class Case:
@@ -237,24 +309,14 @@ class Dicom2MHACase(Case):
             return self.compile_log()
 
     def extract_metadata(self):
-        vseries = len(self.valid_series)
-        self.write_log(f'Extracting metadata from {plural(vseries, "serie")}')
+        self.write_log(f'Extracting metadata from {plural(len(self.valid_series), "serie")}')
         errors = []
 
-        file_reader, series_reader = make_sitk_readers()
         for i, serie in enumerate(self.valid_series):
             try:
-                dicom_filenames = [os.path.basename(dcm) for dcm in series_reader.GetGDCMSeriesFileNames(serie.path.as_posix())]
-
-                # verify DICOM files are found
-                if len(dicom_filenames) == 0:
-                    raise MissingDICOMFilesError(serie.path)
-
-                if self.settings.verify_dicom_filenames:
-                    serie.verify_dicom_filenames(dicom_filenames)
-
-                serie.extract_metadata(file_reader, dicom_filenames, self.settings.tags)
-                serie.write_log('Extracted metadata')
+                serie.extract_metadata(
+                    verify_dicom_filenames=self.settings.verify_dicom_filenames
+                )
             except (MissingDICOMFilesError, UnreadableDICOMError) as e:
                 serie.error = e
                 errors.append(i)
@@ -262,21 +324,16 @@ class Dicom2MHACase(Case):
         self.write_log(f'\t({plural(len(errors), "error")}{f" {errors}" if len(errors) > 0 else ""})')
 
     def apply_mappings(self):
-        vseries = len(self.valid_series)
-        self.write_log(f'Applying mappings to {vseries} series')
+        self.write_log(f'Applying mappings to {len(self.valid_series)} series')
         errors = []
 
         for i, serie in enumerate(self.valid_series):
             try:
-                for name, mapping in self.settings.mappings.items():
-                    for key, values in mapping.items():
-                        # TODO: option for mapping matching... [strict, stripped (lowerstrip()), contains, Callable]
-                        if any(v == serie.metadata[key] for v in values):
-                            serie.mappings.append(name)
-
-                if len(serie.mappings) == 0:
-                    raise NoMappingsApplyError()
-                serie.write_log(f'Applied mappings [{", ".join(serie.mappings)}]')
+                serie.apply_mappings(
+                    mappings=self.settings.mappings,
+                    metadata_match_func=self.settings.metadata_match_func,
+                    values_match_func=self.settings.values_match_func,
+                )
             except NoMappingsApplyError as e:
                 serie.error = e
                 errors.append(i)
@@ -358,19 +415,53 @@ class Dicom2MHACase(Case):
 
 
 class Dicom2MHAConverter:
-    def __init__(self, input_dir: PathLike, output_dir: PathLike, dcm2mha_settings: Union[PathLike, Dict]):
-        """TODO: add docstring"""
+    def __init__(
+        self,
+        input_dir: PathLike,
+        output_dir: PathLike,
+        dcm2mha_settings: Union[PathLike, Dict] = None,
+    ):
+        """
+        Parameters
+        ----------
+        - input_dir: path to the DICOM archive. Used as base path for the relative paths
+            of the archive items.
+        - output_dir: path to store the MHA archive.
+        - dcm2mha_settings: object with mappings, cases and optional parameters. May be
+            a dictionary containing `mappings`, `archive`, and optionally `options`,
+            or a path to a JSON file with these elements.
+            - mappings: criteria to map DICOM sequences to their MHA counterparts
+            - cases: list of DICOM sequences in the DICOM archive. Each case should contain:
+                - patient_id: unique patient identifier
+                - study_id: unique study identifier
+                - path: path to DICOM sequence.
+            - options: (optional)
+                - num_threads: number of multithreading threads. Default: 4.
+                - verify_dicom_filenames: whether to check if DICOM filenames contain consequtive
+                    numbers. Default: True
+                - allow_duplicates: whether multiple DICOM series can map to the same MHA postfix.
+                    Default: False
+                - metadata_match_func: method to match DICOM metadata to MHA sequences. Only use
+                    this if you know what you're doing.
+                - values_match_func: criterium to consider two values a match, when comparing the
+                    value from the DICOM metadata against the provided allowed vaues in the mapping.
+
+        """
         self.input_dir = Path(input_dir)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
+        # parse settings
         if isinstance(dcm2mha_settings, (Path, str)):
             with open(dcm2mha_settings) as fp:
                 dcm2mha_settings = json.load(fp)
 
         jsonschema.validate(dcm2mha_settings, dcm2mha_schema, cls=jsonschema.Draft7Validator)
+        self.settings = Dicom2MHASettings(
+            mappings=dcm2mha_settings['mappings'],
+            **dcm2mha_settings.get('options', {})
+        )
 
-        self.settings = Dicom2MHASettings(dcm2mha_settings['mappings'], **dcm2mha_settings.get('options', {}))
         self.cases = self._init_cases(dcm2mha_settings['archive'])
 
         logfile = self.output_dir / f'picai_prep_{datetime.now().strftime("%Y%m%d%H%M%S")}.log'
