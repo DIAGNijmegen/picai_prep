@@ -58,34 +58,34 @@ def generate_dcm2mha_settings(
     """
 
     archive_list = []
+    archive_dir = Path(archive_dir)
 
     # traverse DICOM archive
     for patient_id in tqdm(sorted(os.listdir(archive_dir))):
         # traverse each patient's studies
-        patient_dir = os.path.join(archive_dir, patient_id)
-        if not os.path.isdir(patient_dir):
+        patient_dir: Path = archive_dir / patient_id
+        if not patient_dir.is_dir():
             continue
 
         # collect list of available studies
-        patient_dir = os.path.join(archive_dir, patient_id)
         for study_id in sorted(os.listdir(patient_dir)):
             # traverse each study's sequences
-            study_dir = os.path.join(patient_dir, study_id)
-            if not os.path.isdir(study_dir):
+            study_dir = patient_dir / study_id
+            if not study_dir.is_dir():
                 continue
 
             for series_id in sorted(os.listdir(study_dir)):
                 # construct path to series folder
-                path = Path(os.path.join(patient_id, study_id, series_id))
+                path = os.path.join(patient_id, study_id, series_id)
 
-                if not os.path.isdir(path):
+                if not (study_dir / series_id).is_dir():
                     continue
 
                 # store info
                 archive_list += [{
                     "patient_id": patient_id,
                     "study_id": study_id,
-                    "path": path.as_posix(),
+                    "path": path,
                 }]
 
     if not mappings:
