@@ -26,8 +26,8 @@ from picai_prep.examples.mha2nnunet import (picai_archive,
 def dcm2mha(args):
     """Wrapper for DICOM → MHA conversion"""
     archive = Dicom2MHAConverter(
-        input_path=args.input,
-        output_path=args.output,
+        input_dir=args.input,
+        output_dir=args.output,
         settings_path=args.json,
         silent=args.silent
     )
