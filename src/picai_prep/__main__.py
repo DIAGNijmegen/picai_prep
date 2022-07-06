@@ -28,7 +28,7 @@ def dcm2mha(args):
     archive = Dicom2MHAConverter(
         input_dir=args.input,
         output_dir=args.output,
-        settings_path=args.json,
+        dcm2mha_settings=args.json,
         silent=args.silent
     )
     archive.convert()
