@@ -29,7 +29,6 @@ def dcm2mha(args):
         input_dir=args.input,
         output_dir=args.output,
         dcm2mha_settings=args.json,
-        silent=args.silent
     )
     archive.convert()
 
