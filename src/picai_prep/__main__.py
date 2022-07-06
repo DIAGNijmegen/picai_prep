@@ -22,10 +22,6 @@ from picai_prep.examples.mha2nnunet import (picai_archive,
                                             sample_archive,
                                             sample_archive_inference)
 
-# Set up command line arguments
-parser = argparse.ArgumentParser()
-subparsers = parser.add_subparsers()
-
 
 def dcm2mha(args):
     """Wrapper for DICOM → MHA conversion"""
@@ -83,6 +79,10 @@ def run_nnunet2nndet(args):
     )
 
 
+# Set up command line arguments
+parser = argparse.ArgumentParser()
+subparsers = parser.add_subparsers()
+
 # Argument parser for DICOM → MHA
 dcm = subparsers.add_parser('dcm2mha')
 dcm.add_argument("-j", "--json", type=str, required=True,
@@ -139,7 +139,7 @@ nnunet2nndet_parser.set_defaults(func=run_nnunet2nndet)
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    if args.func is not None:
+    if hasattr(args, 'func'):
         args.func(args)
     else:
         parser.print_help()
