@@ -11,3 +11,15 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+
+from picai_prep.examples.mha2nnunet import (picai_archive,
+                                            picai_archive_inference,
+                                            sample_archive,
+                                            sample_archive_inference)
+
+__all__ = [
+    "picai_archive",
+    "picai_archive_inference",
+    "sample_archive",
+    "sample_archive_inference"
+]
