@@ -12,10 +12,8 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from picai_prep.examples.dcm2mha import (sample_archive,
-                                         sample_archive_inference)
+from picai_prep.examples.dcm2mha import sample_archive
 
 __all__ = [
     "sample_archive",
-    "sample_archive_inference"
 ]
