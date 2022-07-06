@@ -76,7 +76,7 @@ def generate_dcm2mha_settings(
 
             for series_id in sorted(os.listdir(study_dir)):
                 # construct path to series folder
-                path = os.path.join(patient_id, study_id, series_id)
+                path = Path(patient_id, study_id, series_id)
 
                 if not (study_dir / series_id).is_dir():
                     continue
@@ -85,7 +85,7 @@ def generate_dcm2mha_settings(
                 archive_list += [{
                     "patient_id": patient_id,
                     "study_id": study_id,
-                    "path": path,
+                    "path": path.as_posix(),
                 }]
 
     if not mappings:
