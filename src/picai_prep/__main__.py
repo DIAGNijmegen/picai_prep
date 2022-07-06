@@ -14,6 +14,7 @@
 
 
 import argparse
+import sys
 
 from picai_prep import Dicom2MHAConverter, MHA2nnUNetConverter, nnunet2nndet
 from picai_prep.examples.mha2nnunet import (picai_archive,
@@ -138,4 +139,8 @@ nnunet2nndet_parser.set_defaults(func=run_nnunet2nndet)
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    args.func(args)
+    if args.func is not None:
+        args.func(args)
+    else:
+        parser.print_help()
+        sys.exit(1)
