@@ -39,6 +39,7 @@ Mappings = Dict[str, Mapping]
 
 class SeriesException(Exception):
     """Base Exception for errors in an item (series within a case)"""
+
     def __init__(self, message: str):
         super().__init__(message)
 
@@ -48,24 +49,28 @@ class SeriesException(Exception):
 
 class MissingDICOMFilesError(SeriesException):
     """Exception raised when a DICOM series has missing DICOM slices"""
+
     def __init__(self, path: PathLike):
         super().__init__(f"Missing DICOM slices detected in {path}")
 
 
 class NoMappingsApplyError(SeriesException):
     """Exception raised when no mappings apply to the case"""
+
     def __init__(self):
         super().__init__('None of the provided mappings apply to this item')
 
 
 class UnreadableDICOMError(SeriesException):
     """Exception raised when a DICOM series could not be loaded"""
+
     def __init__(self, path: PathLike):
         super().__init__(f'Could not read {path} using either SimpleITK or pydicom')
 
 
 class ArchiveItemPathNotFoundError(SeriesException):
     """Exception raised when a DICOM series could not be found"""
+
     def __init__(self, path: PathLike):
         super().__init__(f"Provided archive item path not found ({path})")
 
@@ -246,28 +251,6 @@ class Dicom2MHACase(Case):
     paths: List[PathLike]
     settings: Dicom2MHASettings
 
-    def __post_init__(self):
-        self.series: List[Series] = []
-        self._log = [f'Importing {plural(len(self.paths), "serie")}']
-
-        full_paths = set()
-        for path in self.paths:
-            full_path = self.input_dir / path
-            serie = Series(full_path, self.patient_id, self.study_id)
-            try:
-                if path in full_paths:
-                    raise FileExistsError(path)
-                full_paths.add(full_path)
-            except Exception as e:
-                serie.error = e
-                logging.error(str(e))
-            finally:
-                self.write_log(f'\t+ ({len(self.series)}) {full_path}')
-                self.series.append(serie)
-
-        if not all([serie.is_valid for serie in self.series]):
-            self.invalidate()
-
     def __repr__(self):
         return f'Case({self.patient_id}_{self.study_id})'
 
@@ -298,6 +281,7 @@ class Dicom2MHACase(Case):
 
     def convert(self, output_dir):
         try:
+            self.initialize()
             self.extract_metadata()
             self.apply_mappings()
             self.resolve_duplicates()
@@ -307,6 +291,28 @@ class Dicom2MHACase(Case):
             logging.error(str(e))
         finally:
             return self.compile_log()
+
+    def initialize(self):
+        self.series: List[Series] = []
+        self._log = [f'Importing {plural(len(self.paths), "serie")}']
+
+        full_paths = set()
+        for path in self.paths:
+            full_path = self.input_dir / path
+            serie = Series(full_path, self.patient_id, self.study_id)
+            try:
+                if path in full_paths:
+                    raise FileExistsError(path)
+                full_paths.add(full_path)
+            except Exception as e:
+                serie.error = e
+                logging.error(str(e))
+            finally:
+                self.write_log(f'\t+ ({len(self.series)}) {full_path}')
+                self.series.append(serie)
+
+        if not all([serie.is_valid for serie in self.series]):
+            self.invalidate()
 
     def extract_metadata(self):
         self.write_log(f'Extracting metadata from {plural(len(self.valid_series), "serie")}')
