@@ -42,17 +42,14 @@ def generate_mha2nnunet_settings(
     - output_path: path to store MHA -> nnUNet settings JSON to
         (parent folder should exist)
     """
-    ignore_files = [
-        ".DS_Store",
-        "LICENSE",
-    ]
 
     archive_list = []
 
     # traverse MHA archive
     for patient_id in tqdm(sorted(os.listdir(archive_dir))):
-        # traverse each patient
-        if patient_id in ignore_files:
+        # traverse each patient's studies
+        patient_dir = os.path.join(archive_dir, patient_id)
+        if not os.path.isdir(patient_dir):
             continue
 
         # collect list of available studies

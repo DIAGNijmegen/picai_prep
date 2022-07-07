@@ -17,13 +17,10 @@ import argparse
 import sys
 
 from picai_prep import Dicom2MHAConverter, MHA2nnUNetConverter, nnunet2nndet
-from picai_prep.examples.mha2nnunet import (picai_archive,
-                                            picai_archive_inference,
-                                            sample_archive,
-                                            sample_archive_inference)
+from picai_prep.examples import dcm2mha, mha2nnunet
 
 
-def dcm2mha(args):
+def run_dcm2mha(args):
     """Wrapper for DICOM → MHA conversion"""
     archive = Dicom2MHAConverter(
         input_dir=args.input,
@@ -33,13 +30,10 @@ def dcm2mha(args):
     archive.convert()
 
 
-def generate_mha2nnunet_settings(args):
-    """Wrapper to generate mha2nnunet settings"""
+def generate_dcm2mha_settings(args):
+    """Wrapper to generate dcm2mha settings"""
     func = {
-        "picai_archive": picai_archive.generate_mha2nnunet_settings,
-        "picai_archive_inference": picai_archive_inference.generate_mha2nnunet_settings,
-        "sample_archive": sample_archive.generate_mha2nnunet_settings,
-        "sample_archive_inference": sample_archive_inference.generate_mha2nnunet_settings
+        "sample_archive": dcm2mha.sample_archive.generate_dcm2mha_settings,
     }[args.structure]
 
     kwargs = {
@@ -47,14 +41,11 @@ def generate_mha2nnunet_settings(args):
         "output_path": args.json,
     }
 
-    if args.annotations is not None:
-        kwargs["annotations_dir"] = args.annotations
-
     # generate settings
     func(**kwargs)
 
 
-def mha2nnunet(args):
+def run_mha2nnunet(args):
     """Wrapper for MHA → nnUNet conversion"""
     annotations_path = args.annotations if args.annotations else args.input
 
@@ -68,6 +59,27 @@ def mha2nnunet(args):
         silent=args.silent
     )
     archive.convert()
+
+
+def generate_mha2nnunet_settings(args):
+    """Wrapper to generate mha2nnunet settings"""
+    func = {
+        "picai_archive": mha2nnunet.picai_archive.generate_mha2nnunet_settings,
+        "picai_archive_inference": mha2nnunet.picai_archive_inference.generate_mha2nnunet_settings,
+        "sample_archive": mha2nnunet.sample_archive.generate_mha2nnunet_settings,
+        "sample_archive_inference": mha2nnunet.sample_archive_inference.generate_mha2nnunet_settings
+    }[args.structure]
+
+    kwargs = {
+        "archive_dir": args.input,
+        "output_path": args.json,
+    }
+
+    if args.annotations is not None:
+        kwargs["annotations_dir"] = args.annotations
+
+    # generate settings
+    func(**kwargs)
 
 
 def run_nnunet2nndet(args):
@@ -92,20 +104,18 @@ dcm.add_argument("-o", "--output", type=str, required=True,
                  help="Root directory for output")
 dcm.add_argument("-s", "--silent", action='store_true', required=False,
                  help="Mute log messages")
-dcm.set_defaults(func=dcm2mha)
+dcm.set_defaults(func=run_dcm2mha)
 
 
-# Argument parser for mha2nnunet_settings
-mha = subparsers.add_parser('mha2nnunet_settings')
+# Argument parser for dcm2mha_settings
+mha = subparsers.add_parser('dcm2mha_settings')
 mha.add_argument("-s", "--structure", type=str, required=True,
-                 help="Structure of MHA Archive")
+                 help="Structure of DICOM Archive")
 mha.add_argument("-i", "--input", type=str, required=True,
-                 help="Path to MHA Archive")
-mha.add_argument("-a", "--annotations", type=str, required=False,
-                 help="Path to PICAI annotations (defaults to --input)")
+                 help="Path to DICOM Archive")
 mha.add_argument("-j", "--json", type=str, required=True,
-                 help="Path to store mha2nnunet_settings.json")
-mha.set_defaults(func=generate_mha2nnunet_settings)
+                 help="Path to store dcm2mha_settings.json")
+mha.set_defaults(func=generate_dcm2mha_settings)
 
 
 # Argument parser for MHA → nnUNet
@@ -124,7 +134,20 @@ mha.add_argument("--out_dir_annot", type=str, default="labelsTr",
                  help="Folder for annotations (relative to root directory)")
 mha.add_argument("-s", "--silent", action='store_true', required=False,
                  help="Mute log messages")
-mha.set_defaults(func=mha2nnunet)
+mha.set_defaults(func=run_mha2nnunet)
+
+
+# Argument parser for mha2nnunet_settings
+mha = subparsers.add_parser('mha2nnunet_settings')
+mha.add_argument("-s", "--structure", type=str, required=True,
+                 help="Structure of MHA Archive")
+mha.add_argument("-i", "--input", type=str, required=True,
+                 help="Path to MHA Archive")
+mha.add_argument("-a", "--annotations", type=str, required=False,
+                 help="Path to PICAI annotations (defaults to --input)")
+mha.add_argument("-j", "--json", type=str, required=True,
+                 help="Path to store mha2nnunet_settings.json")
+mha.set_defaults(func=generate_mha2nnunet_settings)
 
 
 # Argument parser for nnUNet → nnDetection

@@ -56,33 +56,30 @@ def generate_dcm2mha_settings(
     allow_duplicates: bool, default: False
         when multiple series apply to a mapping, convert all
     """
-    ignore_files = [
-        ".DS_Store",
-        "LICENSE",
-    ]
 
     archive_list = []
+    archive_dir = Path(archive_dir)
 
     # traverse DICOM archive
     for patient_id in tqdm(sorted(os.listdir(archive_dir))):
-        # traverse each patient
-        if patient_id in ignore_files:
+        # traverse each patient's studies
+        patient_dir: Path = archive_dir / patient_id
+        if not patient_dir.is_dir():
             continue
 
-        patient_dir = os.path.join(archive_dir, patient_id)
+        # collect list of available studies
         for study_id in sorted(os.listdir(patient_dir)):
-            # traverse each study
-            if study_id in ignore_files:
+            # traverse each study's sequences
+            study_dir = patient_dir / study_id
+            if not study_dir.is_dir():
                 continue
 
-            study_dir = os.path.join(patient_dir, study_id)
             for series_id in sorted(os.listdir(study_dir)):
-                # traverse each series
-                if series_id in ignore_files:
-                    continue
-
                 # construct path to series folder
-                path = Path(os.path.join(patient_id, study_id, series_id))
+                path = Path(patient_id, study_id, series_id)
+
+                if not (study_dir / series_id).is_dir():
+                    continue
 
                 # store info
                 archive_list += [{
