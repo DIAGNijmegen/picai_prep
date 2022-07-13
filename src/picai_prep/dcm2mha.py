@@ -120,7 +120,7 @@ class Series:
             raise NotADirectoryError(self.path)
 
     @property
-    def is_valid(self):
+    def is_valid(self) -> bool:
         return self.error is None
 
     def write_log(self, msg: str):
@@ -261,7 +261,7 @@ class Dicom2MHACase(Case):
         return [item for item in self.series if item.is_valid]
 
     @property
-    def subject_id(self):
+    def subject_id(self) -> str:
         return f"{self.patient_id}_{self.study_id}"
 
     def invalidate(self):
