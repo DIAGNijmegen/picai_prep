@@ -160,14 +160,14 @@ class Series:
         try:
             file_reader.SetFileName(str(dicom_slice_path))
             file_reader.ReadImageInformation()
-            self.resolution = np.prod(file_reader.GetSpacing())
+            self.spacing = file_reader.GetSpacing()
             for name, key in dicom_tags.items():
                 self.metadata[name] = file_reader.GetMetaData(key) if file_reader.HasMetaDataKey(key) else ''
         except Exception as e:
             self.write_log(f"Reading with SimpleITK failed for {self.path} with error: {e}. Attempting with pydicom.")
             try:
                 with pydicom.dcmread(dicom_slice_path) as data:
-                    self.resolution = np.prod(data.PixelSpacing)
+                    self.spacing = data.PixelSpacing
                     for name, key in dicom_tags.items():
                         self.metadata[name] = get_pydicom_value(data, key)
             except pydicom.errors.InvalidDicomError:
@@ -358,7 +358,7 @@ class Dicom2MHACase(Case):
         # define tiebreakers, which should have: name, value_func, pick_largest
         tiebreakers = [
             ('slice count', lambda a: len(a.filenames), True),
-            ('image resolution', lambda a: a.resolution, False),
+            ('image resolution', lambda a: np.prod(a.spacing), False),
             ('filename', lambda a: str(a.path), False),
         ]
 
