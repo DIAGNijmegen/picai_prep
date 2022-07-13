@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Sequence, Union
 
 import jsonschema
 import numpy as np
@@ -102,7 +102,7 @@ class Series:
 
     # image metadata
     filenames: Optional[List[str]] = None
-    resolution: Optional[float] = None
+    spacing: Optional[Sequence[float]] = None
     metadata: Optional[Metadata] = field(default_factory=dict)
 
     mappings: List[str] = field(default_factory=list)
@@ -127,12 +127,14 @@ class Series:
         self._log.append(msg)
 
     def verify_dicom_filenames(self, filenames: List[PathLike]) -> bool:
+        """Verify DICOM filenames have increasing numbers, with no gaps"""
         vdcms = [d.rsplit('.', 1)[0] for d in filenames]
         vdcms = [int(''.join(c for c in d if c.isdigit())) for d in vdcms]
         missing_slices = False
         for num in range(min(vdcms), max(vdcms) + 1):
             if num not in vdcms:
                 missing_slices = True
+                break
         if missing_slices:
             raise MissingDICOMFilesError(self.path)
         return True
