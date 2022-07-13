@@ -89,6 +89,7 @@ def test_resolve_duplicates(
     )
 
     # resolve duplicates
+    case.initialize()
     case.extract_metadata()
     case.apply_mappings()
     case.resolve_duplicates()
@@ -126,6 +127,7 @@ def test_value_match_contains(
     )
 
     # resolve duplicates
+    case.initialize()
     case.extract_metadata()
     case.apply_mappings()
 
@@ -176,6 +178,7 @@ def test_value_match_multiple_keys(
     case = archive.cases[0]
 
     # resolve duplicates
+    case.initialize()
     case.extract_metadata()
     case.apply_mappings()
 
