@@ -21,6 +21,8 @@ dcm2mha_schema = {
                     }
                 },
                 "required": [
+                    "patient_id",
+                    "study_id",
                     "path"
                 ],
                 "additionalProperties": False
@@ -36,6 +38,10 @@ dcm2mha_schema = {
                 }
             },
             "additionalProperties": False
+        },
+        "options": {
+            "type": "object",
+            "additionalProperties": True
         }
     },
     "additionalProperties": False,

@@ -33,7 +33,7 @@ def test_archive_json(
     """
     generate_dcm2mha_settings(
         archive_dir=archive_dir,
-        output_path=output_path
+        output_path=output_path,
     )
 
     with open(output_path) as fp:

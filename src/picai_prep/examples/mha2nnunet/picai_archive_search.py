@@ -15,6 +15,8 @@
 
 import json
 import os
+from pathlib import Path
+from typing import List
 
 from picai_prep.data_utils import PathLike
 from tqdm import tqdm
@@ -23,58 +25,64 @@ from tqdm import tqdm
 def generate_mha2nnunet_settings(
     archive_dir: PathLike,
     output_path: PathLike,
+    subject_list: List[str],
     task: str = "Task2201_picai_baseline",
+    strict: bool = True,
 ):
     """
-    Create mha2nnunet_settings.json (for inference) for an MHA archive with the following structure:
+    Create mha2nnunet_settings.json for an MHA archive with the following structure:
     /path/to/archive/
     ├── [patient UID]/
         ├── [patient UID]_[study UID]_[modality].mha
         ...
 
+    For each study, the T2-weighted scan (_t2w.mha), apparent diffusion scan (_adc.mha)
+    and high b-value scan (_hbv.mha) are collected.
+
     Parameters:
     - archive_dir: path to MHA archive
-    - output_path: path to store MHA -> nnUNet settings JSON to
-        (parent folder should exist)
+    - output_path: path to store MHA->nnUNet settings JSON (parent folder should exist)
     """
+    # convert paths
+    archive_dir = Path(archive_dir)
+    output_path = Path(output_path)
 
     archive_list = []
+    for subject_id in tqdm(subject_list):
+        # split subject id
+        patient_id, study_id = str(subject_id).split("_")
 
-    # traverse MHA archive
-    for patient_id in tqdm(sorted(os.listdir(archive_dir))):
-        # traverse each patient's studies
-        patient_dir = os.path.join(archive_dir, patient_id)
-        if not os.path.isdir(patient_dir):
+        # construct path to MRI study
+        study_dir = archive_dir / patient_id
+
+        if not study_dir.exists():
+            if strict:
+                raise FileNotFoundError(f"Folder not found for {subject_id} at {study_dir}!")
+            print(f"Folder not found for {subject_id} at {study_dir}! Skipping...")
             continue
 
-        # collect list of available studies
-        patient_dir = os.path.join(archive_dir, patient_id)
-        files = os.listdir(patient_dir)
-        files = [fn.replace(".mha", "") for fn in files if ".mha" in fn and "._" not in fn]
-        subject_ids = ["_".join(fn.split("_")[0:2]) for fn in files]
-        subject_ids = sorted(list(set(subject_ids)))
+        # construct scan paths
+        scan_paths = [
+            f"{patient_id}/{subject_id}_{modality}.mha"
+            for modality in ["t2w", "adc", "hbv"]
+        ]
+        all_scans_found = all([
+            os.path.exists(os.path.join(archive_dir, path))
+            for path in scan_paths
+        ])
 
-        # check which studies are complete
-        for subject_id in subject_ids:
-            patient_id, study_id = subject_id.split("_")
-
-            # construct scan paths
-            scan_paths = [
-                f"{patient_id}/{subject_id}_{modality}.mha"
-                for modality in ["t2w", "adc", "hbv"]
-            ]
-            all_scans_found = all([
-                os.path.exists(os.path.join(archive_dir, path))
-                for path in scan_paths
-            ])
-
-            if all_scans_found:
-                # store info for complete studies
-                archive_list += [{
-                    "patient_id": patient_id,
-                    "study_id": study_id,
-                    "scan_paths": scan_paths,
-                }]
+        if all_scans_found:
+            # store info for complete studies
+            archive_list += [{
+                "patient_id": patient_id,
+                "study_id": study_id,
+                "scan_paths": scan_paths,
+            }]
+        else:
+            if strict:
+                raise FileNotFoundError(f"Not all scans found for {subject_id} at {study_dir}!")
+            print(f"Not all scans found for {subject_id} at {study_dir}! Skipping...")
+            continue
 
     mha2nnunet_settings = {
         "dataset_json": {
@@ -105,7 +113,7 @@ def generate_mha2nnunet_settings(
             #     3.6,
             #     0.5,
             #     0.5
-            # ]
+            # ],
         },
         "archive": archive_list
     }

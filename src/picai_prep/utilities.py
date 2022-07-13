@@ -19,7 +19,7 @@ import pydicom
 import SimpleITK as sitk
 
 from picai_prep.resources.dcm2mha_schema import dcm2mha_schema
-from picai_prep.resources.metadata import metadata_dict
+from picai_prep.resources.dicom_tags import dicom_tags
 from picai_prep.resources.mha2nnunet_schema import mha2nnunet_schema
 
 
@@ -27,11 +27,11 @@ def lower_strip(s: str):
     return s.lower().strip()
 
 
-def plural(v: int, s: str):
-    return f"{v} {s}{'' if v == 1 else 's'}"
+def plural(num: int, word: str):
+    return f"{num} {word}{'' if num == 1 else 's'}"
 
 
-def get_pydicom_value(data: pydicom.dataset.FileDataset, key: str):
+def get_pydicom_value(data: pydicom.dataset.Dataset, key: str):
     key = '0x' + key.replace('|', '')
     if key in data:
         result = data[key]
@@ -64,6 +64,6 @@ metadata_defaults = {
 __all__ = [
     # Explicitly expose these functions for easier imports
     "dcm2mha_schema",
-    "metadata_dict",
+    "dicom_tags",
     "mha2nnunet_schema",
 ]
