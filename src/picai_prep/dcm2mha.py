@@ -388,10 +388,10 @@ class Dicom2MHACase(Case):
         self.write_log(f'Writing {plural(total, "serie")}')
         errors, skips = [], []
 
-        dir = output_dir / self.patient_id
+        patient_dir = output_dir / self.patient_id
         for i, serie in enumerate(self.valid_series):
             for mapping in serie.mappings:
-                destination = (dir / '_'.join([self.patient_id, self.study_id, mapping])).with_suffix('.mha')
+                destination = (patient_dir / '_'.join([self.patient_id, self.study_id, mapping])).with_suffix('.mha')
                 if destination.exists():
                     serie.write_log(f'Skipped "{mapping}", already exists: {destination}')
                     skips.append(i)
@@ -415,7 +415,7 @@ class Dicom2MHACase(Case):
                     else:
                         serie.write_log(f'Wrote image to {destination}')
 
-        self.write_log(f'Wrote {total - len(errors) - len(skips)} MHA files to {dir.as_posix()}\n'
+        self.write_log(f'Wrote {total - len(errors) - len(skips)} MHA files to {patient_dir.as_posix()}\n'
                        f'\t({plural(len(errors), "error")}{f" {errors}" if len(errors) > 0 else ""}, '
                        f'{len(skips)} skipped{f" {skips}" if len(skips) > 0 else ""})')
 
