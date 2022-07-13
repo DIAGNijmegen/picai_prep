@@ -111,7 +111,7 @@ class Series:
     _log: List[str] = field(default_factory=list)
 
     def __repr__(self):
-        return self.path.name
+        return f"Series({self.path.name})"
 
     def __post_init__(self):
         if not self.path.exists():
