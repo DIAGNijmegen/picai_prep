@@ -252,11 +252,15 @@ class Dicom2MHACase(Case):
     settings: Dicom2MHASettings
 
     def __repr__(self):
-        return f'Case({self.patient_id}_{self.study_id})'
+        return f'Case({self.subject_id})'
 
     @property
     def valid_series(self):
         return [item for item in self.series if item.is_valid]
+
+    @property
+    def subject_id(self):
+        return f"{self.patient_id}_{self.study_id}"
 
     def invalidate(self):
         for serie in self.valid_series:
@@ -268,7 +272,7 @@ class Dicom2MHACase(Case):
     def compile_log(self):
         divider = '=' * 120
         log = [divider,
-               f'CASE {self.patient_id}_{self.study_id}',
+               f'CASE {self.subject_id}',
                f'\tPATIENT ID\t{self.patient_id}',
                f'\tSTUDY ID\t{self.study_id}\n']
         log += self._log
@@ -391,9 +395,9 @@ class Dicom2MHACase(Case):
         patient_dir = output_dir / self.patient_id
         for i, serie in enumerate(self.valid_series):
             for mapping in serie.mappings:
-                destination = (patient_dir / '_'.join([self.patient_id, self.study_id, mapping])).with_suffix('.mha')
-                if destination.exists():
-                    serie.write_log(f'Skipped "{mapping}", already exists: {destination}')
+                dst_path = patient_dir / f"{self.subject_id}_{mapping}.mha"
+                if dst_path.exists():
+                    serie.write_log(f'Skipped "{mapping}", already exists: {dst_path}')
                     skips.append(i)
 
                 try:
@@ -407,13 +411,13 @@ class Dicom2MHACase(Case):
                     # if self.scan_postprocess_func is not None:
                     #     image = self.scan_postprocess_func(image)
                     try:
-                        atomic_image_write(image=image, path=destination, mkdir=True)
+                        atomic_image_write(image=image, path=dst_path, mkdir=True)
                     except Exception as e:
                         serie.write_log(f'Skipped "{mapping}", write error: {e}')
                         logging.error(str(e))
                         errors.append(i)
                     else:
-                        serie.write_log(f'Wrote image to {destination}')
+                        serie.write_log(f'Wrote image to {dst_path}')
 
         self.write_log(f'Wrote {total - len(errors) - len(skips)} MHA files to {patient_dir.as_posix()}\n'
                        f'\t({plural(len(errors), "error")}{f" {errors}" if len(errors) > 0 else ""}, '
