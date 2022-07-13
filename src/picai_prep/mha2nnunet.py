@@ -15,11 +15,13 @@
 
 import dataclasses
 import json
+import logging
 import os
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import jsonschema
 import SimpleITK as sitk
@@ -29,7 +31,6 @@ from picai_prep.archive import ArchiveConverter
 from picai_prep.data_utils import PathLike, atomic_image_write
 from picai_prep.preprocessing import PreprocessingSettings, Sample
 from picai_prep.utilities import mha2nnunet_schema, plural
-
 
 @dataclass
 class ConversionItem():
@@ -96,6 +97,74 @@ class ConversionItem():
     @property
     def subject_id(self):
         return f"{self.patient_id}_{self.study_id}"
+
+
+
+@dataclass
+class MHA2nnUNetSettings:
+    dataset_json: dict
+    preprocessing: PreprocessingSettings
+    num_threads: int = 4
+
+
+class Dicom2MHAConverter:
+    def __init__(
+        self,
+        input_dir: PathLike,
+        output_dir: PathLike,
+        mha2nnunet_settings: Union[PathLike, Dict] = None,
+    ):
+        """
+        Parameters
+        ----------
+        WIP
+        """
+        self.input_dir = Path(input_dir)
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+        # parse settings
+        if isinstance(mha2nnunet_settings, (Path, str)):
+            with open(mha2nnunet_settings) as fp:
+                mha2nnunet_settings = json.load(fp)
+
+        jsonschema.validate(mha2nnunet_settings, mha2nnunet_schema, cls=jsonschema.Draft7Validator)
+        self.settings = MHA2nnUNetSettings(
+            dataset_json=mha2nnunet_settings['dataset_json'],
+            preprocessing=PreprocessingSettings(**mha2nnunet_settings['preprocessing']),
+            **mha2nnunet_settings.get('options', {})
+        )
+
+        self.cases = self._init_cases(mha2nnunet_settings['archive'])
+
+        logfile = self.output_dir / f'picai_prep_{datetime.now().strftime("%Y%m%d%H%M%S")}.log'
+        logging.basicConfig(level=logging.INFO, format='%(message)s', filename=logfile)
+        logging.info(f'Output directory set to {self.output_dir.absolute().as_posix()}')
+        print(f'Writing log to {logfile.absolute()}')
+
+    # def _init_cases(self, archive: List[Dict]) -> List[Dicom2MHACase]:
+    #     cases = {}
+    #     for item in archive:
+    #         key = tuple(item[id] for id in metadata_defaults.keys())  # (patient_id, study_id)
+    #         cases[key] = cases.get(key, []) + [item['path']]
+    #
+    #     return [
+    #         Dicom2MHACase(self.input_dir, patient_id, study_id, paths, self.settings)
+    #         for (patient_id, study_id), paths in cases.items()
+    #     ]
+
+    def convert(self):
+        start_time = datetime.now()
+        logging.info(f'MHA2nnUNet conversion started at {start_time.isoformat()}\n')
+
+        with ThreadPoolExecutor(max_workers=self.settings.num_threads) as pool:
+            futures = {pool.submit(case.convert, self.output_dir): case for case in self.cases}
+            for future in tqdm(as_completed(futures), total=len(self.cases)):
+                case_log = future.result()
+                logging.info(case_log)
+
+        end_time = datetime.now()
+        logging.info(f'MHA2nnUNet conversion ended at {end_time.isoformat()}\n\t(runtime {end_time - start_time})')
 
 
 class MHA2nnUNetConverter(ArchiveConverter):

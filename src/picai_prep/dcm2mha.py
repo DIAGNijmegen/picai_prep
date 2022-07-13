@@ -81,6 +81,7 @@ class Dicom2MHASettings:
     num_threads: int = 4
     verify_dicom_filenames: bool = True
     allow_duplicates: bool = False
+    verbose: int = 1
     metadata_match_func: Optional[Callable[[Metadata, Mappings], bool]] = None
     values_match_func: Union[str, Callable[[str, str], bool]] = "lower_strip_equals"
 
@@ -125,6 +126,10 @@ class Series:
 
     def write_log(self, msg: str):
         self._log.append(msg)
+
+    def compile_log(self):
+        log = [f'\t{item}' for item in self._log]
+        return '\n'.join([self.path.as_posix()] + log + [f'\tFATAL: {self.error}\n' if not self.is_valid else ''])
 
     def verify_dicom_filenames(self, filenames: List[PathLike]) -> bool:
         vdcms = [d.rsplit('.', 1)[0] for d in filenames]
@@ -270,13 +275,26 @@ class Dicom2MHACase(Case):
         log = [divider,
                f'CASE {self.patient_id}_{self.study_id}',
                f'\tPATIENT ID\t{self.patient_id}',
-               f'\tSTUDY ID\t{self.study_id}\n']
-        log += self._log
-        log += ['\nSERIES', divider.replace('=', '-')]
+               f'\tSTUDY ID\t{self.study_id}\n',
+               *self._log,
+               '\nSERIES', divider.replace('=', '-')]
+
+        summary = {}
+        serie_log = []
         for i, serie in enumerate(self.series):
-            log.append(f'({i}) {serie.path.as_posix()}')
-            log.extend([f'\t{item}' for item in serie._log])
-            log.append(f'\tFATAL: {serie.error}\n' if not serie.is_valid else '')
+            line = f'({i}) {serie.path.as_posix()}'
+            # we simply log the series
+            if self.settings.verbose >= 2:
+                serie_log.append(line)
+            # we log the series only if it had a non-NoMappingsApplyError error
+            if self.settings.verbose == 1 and serie.error and not isinstance(serie.error, NoMappingsApplyError):
+                serie_log.append(line)
+            elif serie.error:
+                summary[type(serie.error).__name__] = summary.get(type(serie.error).__name__, []) + [i]
+
+        log.extend([f'{key}: {value}' for key, value in summary.items()] + [''])
+        log.extend(serie_log + [''])
+
         return '\n'.join(log)
 
     def convert(self, output_dir):
@@ -451,6 +469,9 @@ class Dicom2MHAConverter:
                     this if you know what you're doing.
                 - values_match_func: criterium to consider two values a match, when comparing the
                     value from the DICOM metadata against the provided allowed vaues in the mapping.
+                - verbose: control logfile verbosity. 0 summarizes any errors for each case,
+                    1 only logs each series which critically failed, 2 logs each series verbosely (may lead to
+                    very large log files)
 
         """
         self.input_dir = Path(input_dir)
@@ -488,7 +509,7 @@ class Dicom2MHAConverter:
 
     def convert(self):
         start_time = datetime.now()
-        logging.info(f'Program started at {start_time.isoformat()}\n')
+        logging.info(f'Dicom2MHA conversion started at {start_time.isoformat()}\n')
 
         with ThreadPoolExecutor(max_workers=self.settings.num_threads) as pool:
             futures = {pool.submit(case.convert, self.output_dir): case for case in self.cases}
@@ -497,7 +518,7 @@ class Dicom2MHAConverter:
                 logging.info(case_log)
 
         end_time = datetime.now()
-        logging.info(f'Program ended at {end_time.isoformat()}\n\t(runtime {end_time - start_time})')
+        logging.info(f'Dicom2MHA conversion ended at {end_time.isoformat()}\n\t(runtime {end_time - start_time})')
 
 
 def read_image_series(image_series_path: PathLike) -> sitk.Image:
