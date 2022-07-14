@@ -28,51 +28,33 @@ import SimpleITK as sitk
 from tqdm import tqdm
 
 from picai_prep.data_utils import PathLike, atomic_image_write
-from picai_prep.utilities import (dcm2mha_schema, dicom_tags,
-                                  get_pydicom_value, lower_strip,
-                                  make_sitk_readers, metadata_defaults, plural)
+from picai_prep.utilities import dcm2mha_schema, dicom_tags, get_pydicom_value, lower_strip, make_sitk_readers, plural
+from picai_prep.converter import ConverterException, ArchiveItemPathNotFoundError, Case
 
 Metadata = Dict[str, str]
 Mapping = Dict[str, List[str]]
 Mappings = Dict[str, Mapping]
 
 
-class SeriesException(Exception):
-    """Base Exception for errors in an item (series within a case)"""
-
-    def __init__(self, message: str):
-        super().__init__(message)
-
-    def __str__(self):
-        return f'{type(self).__name__}: {", ".join([a for a in self.args])}'
-
-
-class MissingDICOMFilesError(SeriesException):
+class MissingDICOMFilesError(ConverterException):
     """Exception raised when a DICOM series has missing DICOM slices"""
 
     def __init__(self, path: PathLike):
         super().__init__(f"Missing DICOM slices detected in {path}")
 
 
-class NoMappingsApplyError(SeriesException):
+class NoMappingsApplyError(ConverterException):
     """Exception raised when no mappings apply to the case"""
 
     def __init__(self):
         super().__init__('None of the provided mappings apply to this item')
 
 
-class UnreadableDICOMError(SeriesException):
+class UnreadableDICOMError(ConverterException):
     """Exception raised when a DICOM series could not be loaded"""
 
     def __init__(self, path: PathLike):
         super().__init__(f'Could not read {path} using either SimpleITK or pydicom')
-
-
-class ArchiveItemPathNotFoundError(SeriesException):
-    """Exception raised when a DICOM series could not be found"""
-
-    def __init__(self, path: PathLike):
-        super().__init__(f"Provided archive item path not found ({path})")
 
 
 @dataclass
@@ -81,7 +63,7 @@ class Dicom2MHASettings:
     num_threads: int = 4
     verify_dicom_filenames: bool = True
     allow_duplicates: bool = False
-    verbose: int = 1
+    verbose: int = 2
     metadata_match_func: Optional[Callable[[Metadata, Mappings], bool]] = None
     values_match_func: Union[str, Callable[[str, str], bool]] = "lower_strip_equals"
 
@@ -109,6 +91,7 @@ class Series:
     mappings: List[str] = field(default_factory=list)
 
     error: Optional[Exception] = None
+
     _log: List[str] = field(default_factory=list)
 
     def __repr__(self):
@@ -182,9 +165,9 @@ class Series:
 
     @staticmethod
     def metadata_matches(
-        metadata: Metadata,
-        mapping: Mapping,
-        values_match_func: Callable[[str, str], bool],
+            metadata: Metadata,
+            mapping: Mapping,
+            values_match_func: Callable[[str, str], bool],
     ) -> bool:
         """
         Determine whether Series' metadata matches the mapping.
@@ -203,10 +186,10 @@ class Series:
         return True
 
     def apply_mappings(
-        self,
-        mappings: Mappings,
-        metadata_match_func: Optional[Callable[[Metadata, Mappings], bool]] = None,
-        values_match_func: Optional[Callable[[str, str], bool]] = None,
+            self,
+            mappings: Mappings,
+            metadata_match_func: Optional[Callable[[Metadata, Mappings], bool]] = None,
+            values_match_func: Optional[Callable[[str, str], bool]] = None,
     ) -> None:
         """
         Apply mappings to the series
@@ -244,17 +227,17 @@ class Series:
         self.write_log(f'Applied mappings [{", ".join(self.mappings)}]')
 
 
-class Case:
-    pass
-
-
 @dataclass
-class Dicom2MHACase(Case):
+class Dicom2MHACase():
     input_dir: Path
     patient_id: str
     study_id: str
     paths: List[PathLike]
     settings: Dicom2MHASettings
+
+    series: List[Series] = field(default_factory=list)
+
+    _log: List[str] = field(default_factory=list)
 
     def __repr__(self):
         return f'Case({self.patient_id}_{self.study_id})'
@@ -265,37 +248,35 @@ class Dicom2MHACase(Case):
 
     def invalidate(self):
         for serie in self.valid_series:
-            serie.error = SeriesException('Invalidated due to critical error in sibling')
+            serie.error = ConverterException('Invalidated due to critical error in sibling')
 
     def write_log(self, msg: str):
         self._log.append(msg)
 
     def compile_log(self):
-        divider = '=' * 120
-        log = [divider,
-               f'CASE {self.patient_id}_{self.study_id}',
-               f'\tPATIENT ID\t{self.patient_id}',
-               f'\tSTUDY ID\t{self.study_id}\n',
-               *self._log,
-               '\nSERIES', divider.replace('=', '-')]
+        if self.settings.verbose == 0:
+            return None
 
+        divider = '=' * 120
         summary = {}
         serie_log = []
+
         for i, serie in enumerate(self.series):
-            line = f'({i}) {serie.path.as_posix()}'
-            # we simply log the series
-            if self.settings.verbose >= 2:
-                serie_log.append(line)
-            # we log the series only if it had a non-NoMappingsApplyError error
-            if self.settings.verbose == 1 and serie.error and not isinstance(serie.error, NoMappingsApplyError):
-                serie_log.append(line)
-            elif serie.error:
+            serie_log.append(f'({i}) {serie.compile_log()}')
+            if serie.error:
                 summary[type(serie.error).__name__] = summary.get(type(serie.error).__name__, []) + [i]
 
-        log.extend([f'{key}: {value}' for key, value in summary.items()] + [''])
-        log.extend(serie_log + [''])
-
-        return '\n'.join(log)
+        ignored_errors = {e.__name__ for e in [NoMappingsApplyError]}
+        if len(set(summary.keys()).difference(ignored_errors)) > 0 or self.settings.verbose >= 2:
+            return '\n'.join([divider,
+                              f'CASE {self.patient_id}_{self.study_id}',
+                              f'\tPATIENT ID\t{self.patient_id}',
+                              f'\tSTUDY ID\t{self.study_id}\n',
+                              *self._log,
+                              '\nSERIES', divider.replace('=', '-'),
+                              'Errors found:',
+                              *[f'\t{key}: {value}' for key, value in summary.items()],
+                              '', *serie_log, ''])
 
     def convert(self, output_dir):
         try:
@@ -311,7 +292,6 @@ class Dicom2MHACase(Case):
             return self.compile_log()
 
     def initialize(self):
-        self.series: List[Series] = []
         self._log = [f'Importing {plural(len(self.paths), "serie")}']
 
         full_paths = set()
@@ -417,7 +397,8 @@ class Dicom2MHACase(Case):
                 try:
                     image = read_image_series(serie.path)
                 except Exception as e:
-                    serie.write_log(f'Skipped "{mapping}", reading DICOM sequence failed, maybe corrupt data? Error: {e}')
+                    serie.write_log(
+                        f'Skipped "{mapping}", reading DICOM sequence failed, maybe corrupt data? Error: {e}')
                     logging.error(str(e))
                     errors.append(i)
                 else:
@@ -440,10 +421,10 @@ class Dicom2MHACase(Case):
 
 class Dicom2MHAConverter:
     def __init__(
-        self,
-        input_dir: PathLike,
-        output_dir: PathLike,
-        dcm2mha_settings: Union[PathLike, Dict] = None,
+            self,
+            input_dir: PathLike,
+            output_dir: PathLike,
+            dcm2mha_settings: Union[PathLike, Dict] = None,
     ):
         """
         Parameters
@@ -461,17 +442,18 @@ class Dicom2MHAConverter:
                 - path: path to DICOM sequence.
             - options: (optional)
                 - num_threads: number of multithreading threads. Default: 4.
-                - verify_dicom_filenames: whether to check if DICOM filenames contain consequtive
+                - verify_dicom_filenames: whether to check if DICOM filenames contain consecutive
                     numbers. Default: True
                 - allow_duplicates: whether multiple DICOM series can map to the same MHA postfix.
                     Default: False
                 - metadata_match_func: method to match DICOM metadata to MHA sequences. Only use
                     this if you know what you're doing.
-                - values_match_func: criterium to consider two values a match, when comparing the
+                - values_match_func: criteria to consider two values a match, when comparing the
                     value from the DICOM metadata against the provided allowed vaues in the mapping.
-                - verbose: control logfile verbosity. 0 summarizes any errors for each case,
-                    1 only logs each series which critically failed, 2 logs each series verbosely (may lead to
+                - verbose: control logfile verbosity. 0 does not output a logfile,
+                    1 logs cases which have critically failed, 2 logs all cases (may lead to
                     very large log files)
+                    Default: 1
 
         """
         self.input_dir = Path(input_dir)
@@ -491,17 +473,19 @@ class Dicom2MHAConverter:
 
         self.cases = self._init_cases(dcm2mha_settings['archive'])
 
-        logfile = self.output_dir / f'picai_prep_{datetime.now().strftime("%Y%m%d%H%M%S")}.log'
-        logging.basicConfig(level=logging.INFO, format='%(message)s', filename=logfile)
-        logging.info(f'Output directory set to {self.output_dir.absolute().as_posix()}')
-        print(f'Writing log to {logfile.absolute()}')
+        if self.settings.verbose > 0:
+            logfile = self.output_dir / f'picai_prep_{datetime.now().strftime("%Y%m%d%H%M%S")}.log'
+            logging.basicConfig(level=logging.INFO, format='%(message)s', filename=logfile)
+            logging.info(f'Output directory set to {self.output_dir.absolute().as_posix()}')
+            print(f'Writing log to {logfile.absolute()}')
+        else:
+            logging.disable(logging.INFO)
 
     def _init_cases(self, archive: List[Dict]) -> List[Dicom2MHACase]:
         cases = {}
         for item in archive:
-            key = tuple(item[id] for id in metadata_defaults.keys())  # (patient_id, study_id)
+            key = tuple(item[id] for id in ["patient_id", "study_id"])
             cases[key] = cases.get(key, []) + [item['path']]
-
         return [
             Dicom2MHACase(self.input_dir, patient_id, study_id, paths, self.settings)
             for (patient_id, study_id), paths in cases.items()
@@ -515,7 +499,8 @@ class Dicom2MHAConverter:
             futures = {pool.submit(case.convert, self.output_dir): case for case in self.cases}
             for future in tqdm(as_completed(futures), total=len(self.cases)):
                 case_log = future.result()
-                logging.info(case_log)
+                if case_log:
+                    logging.info(case_log)
 
         end_time = datetime.now()
         logging.info(f'Dicom2MHA conversion ended at {end_time.isoformat()}\n\t(runtime {end_time - start_time})')

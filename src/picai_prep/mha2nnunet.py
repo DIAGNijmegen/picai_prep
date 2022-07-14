@@ -19,7 +19,7 @@ import logging
 import os
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -31,6 +31,7 @@ from picai_prep.archive import ArchiveConverter
 from picai_prep.data_utils import PathLike, atomic_image_write
 from picai_prep.preprocessing import PreprocessingSettings, Sample
 from picai_prep.utilities import mha2nnunet_schema, plural
+from picai_prep.converter import ConverterException
 
 @dataclass
 class ConversionItem():
@@ -99,20 +100,127 @@ class ConversionItem():
         return f"{self.patient_id}_{self.study_id}"
 
 
-
 @dataclass
 class MHA2nnUNetSettings:
     dataset_json: dict
     preprocessing: PreprocessingSettings
+    scans_dirname: PathLike = "imagesTr"
+    annotation_dirname: PathLike = "labelsTr"
+    lbl_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
+    lbl_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
+    scan_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
+    scan_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
     num_threads: int = 4
+    verbose: int = 1
 
 
-class Dicom2MHAConverter:
+@dataclass
+class MHA2nnUNetCase():
+    input_dir: Path
+    annotations_dir: Path
+    patient_id: str
+    study_id: str
+    scan_paths: List[Path]
+    annotation_path: Optional[Path]
+    settings: MHA2nnUNetSettings
+
+    error: Optional[Exception] = None
+
+    _log: List[str] = field(default_factory=list)
+
+    def __repr__(self):
+        return f'Case({self.patient_id}_{self.study_id})'
+
+    def invalidate(self):
+        self.error = ConverterException('Invalidated due to critical error')
+
+    @property
+    def is_valid(self):
+        return self.error is None
+
+    def write_log(self, msg: str):
+        self._log.append(msg)
+
+    def compile_log(self):
+        return ''
+
+    def convert(self, output_dir):
+        try:
+            self.initialize()
+        except Exception as e:
+            self.invalidate()
+            logging.error(str(e))
+        finally:
+            return self.compile_log()
+
+    def initialize(self):
+        pass
+        # self._log = [f'Importing {plural(len(self.paths), "serie")}']
+        #
+        # full_paths = set()
+        # for path in self.paths:
+        #     full_path = self.input_dir / path
+        #     serie = Series(full_path, self.patient_id, self.study_id)
+        #     try:
+        #         if path in full_paths:
+        #             raise FileExistsError(path)
+        #         full_paths.add(full_path)
+        #     except Exception as e:
+        #         serie.error = e
+        #         logging.error(str(e))
+        #     finally:
+        #         self.write_log(f'\t+ ({len(self.series)}) {full_path}')
+        #         self.series.append(serie)
+        #
+        # if not all([serie.is_valid for serie in self.series]):
+        #     self.invalidate()
+
+    # def __post_init__(self):
+    #     output_paths = []
+    #     # check if all scans exist and append to conversion plan
+    #     for i, scan_path in enumerate(self.scan_paths):
+    #         # check (relative) path of input scans
+    #         path = self.input_dir / scan_path
+    #         if not os.path.exists(path):
+    #             self.error = (f"Scan not found at {path}", 'scan not found')
+    #             continue
+    #
+    #         output_path = self.out_dir_scans / f"{self.subject_id}_{i:04d}.nii.gz"
+    #         self.all_scan_properties += [{
+    #             'input_path': path,
+    #             'output_path': output_path,
+    #         }]
+    #         output_paths += [output_path]
+    #
+    #     # check if annotation exists and append to conversion plan
+    #     if self.annotation_path is not None:
+    #         if self.annotations_dir is None:
+    #             self.annotations_dir = self.input_dir
+    #
+    #         # check (relative) path of input scans
+    #         path = self.annotations_dir / self.annotation_path
+    #         if not os.path.exists(path):
+    #             self.error = (f"Annotation not found at {path}", 'annotation not found')
+    #
+    #         output_path = self.out_dir_annot / f"{self.subject_id}.nii.gz"
+    #         self.label_properties = {
+    #             'input_path': path,
+    #             'output_path': output_path,
+    #         }
+    #         output_paths += [output_path]
+    #
+    #     # check if all files already exist
+    #     if all([os.path.exists(path) for path in output_paths]):
+    #         self.skip = True
+
+
+class MHA2nnUNetConverter:
     def __init__(
         self,
         input_dir: PathLike,
         output_dir: PathLike,
-        mha2nnunet_settings: Union[PathLike, Dict] = None,
+        annotations_dir: Optional[PathLike] = None,
+        mha2nnunet_settings: Union[PathLike, Dict] = None
     ):
         """
         Parameters
@@ -120,6 +228,7 @@ class Dicom2MHAConverter:
         WIP
         """
         self.input_dir = Path(input_dir)
+        self.annotations_dir = Path(annotations_dir)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -142,16 +251,8 @@ class Dicom2MHAConverter:
         logging.info(f'Output directory set to {self.output_dir.absolute().as_posix()}')
         print(f'Writing log to {logfile.absolute()}')
 
-    # def _init_cases(self, archive: List[Dict]) -> List[Dicom2MHACase]:
-    #     cases = {}
-    #     for item in archive:
-    #         key = tuple(item[id] for id in metadata_defaults.keys())  # (patient_id, study_id)
-    #         cases[key] = cases.get(key, []) + [item['path']]
-    #
-    #     return [
-    #         Dicom2MHACase(self.input_dir, patient_id, study_id, paths, self.settings)
-    #         for (patient_id, study_id), paths in cases.items()
-    #     ]
+    def _init_cases(self, archive: List[Dict]) -> List[MHA2nnUNetCase]:
+        return [MHA2nnUNetCase(self.input_dir, self.annotations_dir, **kwargs, settings=self.settings) for kwargs in archive]
 
     def convert(self):
         start_time = datetime.now()
@@ -167,17 +268,14 @@ class Dicom2MHAConverter:
         logging.info(f'MHA2nnUNet conversion ended at {end_time.isoformat()}\n\t(runtime {end_time - start_time})')
 
 
-class MHA2nnUNetConverter(ArchiveConverter):
+class MHA2nnUNetaConverter(ArchiveConverter):
     def __init__(
         self,
         input_path: PathLike,
         output_path: PathLike,
         settings_path: PathLike,
         annotations_path: Optional[PathLike] = None,
-        lbl_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None,
-        lbl_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None,
-        scan_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None,
-        scan_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None,
+
         out_dir_scans: PathLike = "imagesTr",
         out_dir_annot: PathLike = "labelsTr",
         num_threads: int = 4,
@@ -216,10 +314,10 @@ class MHA2nnUNetConverter(ArchiveConverter):
         self.out_dir_scans = out_dir_scans
         self.out_dir_annot = out_dir_annot
         self.annotations_path = annotations_path
-        self.lbl_preprocess_func = lbl_preprocess_func
-        self.lbl_postprocess_func = lbl_postprocess_func
-        self.scan_preprocess_func = scan_preprocess_func
-        self.scan_postprocess_func = scan_postprocess_func
+        # self.lbl_preprocess_func = lbl_preprocess_func
+        # self.lbl_postprocess_func = lbl_postprocess_func
+        # self.scan_preprocess_func = scan_preprocess_func
+        # self.scan_postprocess_func = scan_postprocess_func
 
         self.next_history()  # create initial history step
         self.info("Provided mha2nnunet archive is valid.", self.get_history_report())  # report number of items

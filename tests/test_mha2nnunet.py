@@ -59,10 +59,10 @@ def test_mha2nnunet(
 
     # convert MHA archive to nnUNet raw data
     archive = MHA2nnUNetConverter(
-        input_path=input_dir.as_posix(),
-        annotations_path=annotations_dir.as_posix(),
-        output_path=output_dir.as_posix(),
-        settings_path=settings_path,
+        input_dir=input_dir.as_posix(),
+        annotations_dir=annotations_dir.as_posix(),
+        output_dir=output_dir.as_posix(),
+        mha2nnunet_settings=settings_path,
     )
     archive.convert()
 
