@@ -75,6 +75,13 @@ class ArchiveItemPathNotFoundError(SeriesException):
         super().__init__(f"Provided archive item path not found ({path})")
 
 
+class DCESeriesNotFoundError(SeriesException):
+    """Exception raised when DCE series could not be found"""
+
+    def __init__(self, subject_id: str):
+        super().__init__(f"DCE series not found for {subject_id}")
+
+
 @dataclass
 class Dicom2MHASettings:
     mappings: Dict[str, Dict[str, List[str]]]
@@ -298,6 +305,17 @@ class Dicom2MHACase(Case):
         finally:
             return self.compile_log()
 
+    def convert_dce(self, output_dir):
+        try:
+            self.initialize()
+            self.extract_metadata()
+            self._convert_dce(output_dir)
+        except Exception as e:
+            self.invalidate()
+            logging.error(str(e))
+        finally:
+            return self.compile_log()
+
     def initialize(self):
         self.series: List[Series] = []
         self._log = [f'Importing {plural(len(self.paths), "serie")}']
@@ -424,6 +442,102 @@ class Dicom2MHACase(Case):
         self.write_log(f'Wrote {total - len(errors) - len(skips)} MHA files to {patient_dir.as_posix()}\n'
                        f'\t({plural(len(errors), "error")}{f" {errors}" if len(errors) > 0 else ""}, '
                        f'{len(skips)} skipped{f" {skips}" if len(skips) > 0 else ""})')
+
+    def _convert_dce(
+        self,
+        output_dir: PathLike,
+        DCE_prefixes: List[str] = None,
+        return_image: bool = False,
+        verbose: int = 2,  # TODO: sync with general verbosity Stan's working on
+    ):
+        if DCE_prefixes is None:
+            DCE_prefixes = [
+                # the tags below look like DCE tags, but this is unconfirmed!
+                'Perfusie_t1_twist_tra_TTC',
+                'Perfusie_t1_twist_tra_TT',
+                'Twist_dynamic_Wip576_TT',
+                'Perfusie_t1_twist_tra_4mm_TTC',
+                'Twist_dynamic_Wip576_pros_TT',
+                'Perfusie_t1_twist_tra_3,3mm_TTC',
+                'Perfusie_t1_twist_tra_3.3_TTC',
+            ]
+        if not isinstance(DCE_prefixes, list):
+            raise ValueError("DCE_prefixes must be a list")
+
+        # paths
+        patient_dir = Path(output_dir) / self.patient_id
+        patient_dir.mkdir(parents=True, exist_ok=True)
+
+        # check if file already exists (for joined MHA, i.e., 4D)
+        if not return_image:
+            dst_path = patient_dir / f"{self.subject_id}_dce.mha"
+            if dst_path.exists():
+                # TODO: log case is skipped
+                return
+
+        # placeholders
+        dce_scan_time_map: Dict[str, Path] = {}
+        dce_scans: List[sitk.Image] = []
+
+        # collect scan time for all of DCE's T1 scans
+        for serie in self.valid_series:
+            # Get scan time
+            timepoint = None
+            for prefix in DCE_prefixes:
+                match = re.match(fr'{prefix}?=(?P<time>.+)s', serie.metadata['seriesdescription'])
+                if match is not None:
+                    timepoint = match.group('time')
+                    dce_scan_time_map[timepoint] = serie.path
+                    if verbose >= 2:
+                        print(f"Got {timepoint} from {serie.metadata['seriesdescription']}")
+                    break
+
+            if timepoint is None:
+                for prefix in DCE_prefixes:
+                    if prefix in serie.metadata['seriesdescription']:
+                        # try to get scan time from Acquisition Time
+                        timepoint = serie.metadata['acquisitiontime']
+                        dce_scan_time_map[timepoint] = serie.path
+                        if verbose >= 2:
+                            print(f"Got {timepoint} from {serie.metadata['seriesdescription']} ({serie.path})")
+                        break
+
+        # Sort scan-time dictionary
+        times = dce_scan_time_map.keys()
+        times = sorted(times, key=float)
+
+        if verbose >= 2:
+            print(f'Sorted times: {times}')
+
+        if len(times) <= 1:
+            raise DCESeriesNotFoundError(self.subject_id)
+
+        # Collect all DCE scans in chronological order
+        for i, timepoint in enumerate(times):
+            ser_dir = dce_scan_time_map[timepoint]
+            if verbose >= 2:
+                print(f"[{i+1}/{len(times)}]: Reading scan at {timepoint}s from {ser_dir}")
+
+            # Collect T1 image of ordered time points
+            image = read_image_series(ser_dir)
+            dce_scans.append(image)
+
+        joined_images: sitk.Image = sitk.JoinSeries(dce_scans)
+
+        # Copy over metadata to joined image
+        img = dce_scans[0]
+        for key in img.GetMetaDataKeys():
+            joined_images.SetMetaData(key, img.GetMetaData(key))
+
+        # Add metadata for the time of the scans
+        scan_times = ",".join(times)
+        joined_images.SetMetaData("DCE_SCAN_TIMES", scan_times)
+
+        if return_image:
+            return joined_images
+
+        # construct target filename and save to file
+        atomic_image_write(joined_images, dst_path)
 
 
 class Dicom2MHAConverter:

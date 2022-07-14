@@ -118,6 +118,471 @@
             "patient_id": "ProstateX-0001",
             "study_id": "07-08-2011",
             "path": "ProstateX-0001/07-08-2011/9.000000-ep2ddifftraDYNDISTMIXCALCBVAL-58431"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/1.000000-t2localizer-63139"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/10.000000-ep2dadvdiff3Scan4bvalspair511bCALCBVAL-87429"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/11.000000-ep2dadvdiffMDDW12dirspair511b-62762"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/12.000000-ep2dadvdiffMDDW12dirspair511bADC-75591"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/13.000000-ep2dadvdiffMDDW12dirspair511bTRACEW-39788"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/14.000000-ep2dadvdiffMDDW12dirspair511bFA-92177"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/17.000000-ep2dadvdiff3Scanhigh bvalue 100-46786"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/18.000000-ep2dadvdiff3Scanhigh bvalue 500-45005"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/19.000000-ep2dadvdiff3Scanhigh bvalue 1400-42384"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/2.000000-localizer-18571"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/20.000000-tfl2D36slcres64iPAT-29411"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/21.000000-ADChigh bvalue-80390"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/23.000000-fl3dvibepreflip2degWip403dPD-72759"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/24.000000-fl3dvibepreflip5degWip403d-48925"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/25.000000-fl3dvibepreflip10degWip403d-85816"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/26.000000-fl3dvibepreflip20degWip403d-85720"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/27.000000-TwistdynamicWip576TT8.0s-64234"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/28.000000-TwistdynamicWip576TT12.2s-72973"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/29.000000-TwistdynamicWip576TT16.4s-55515"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/3.000000-t2localizer-14071"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/30.000000-TwistdynamicWip576TT20.6s-40703"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/31.000000-TwistdynamicWip576TT24.9s-21662"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/32.000000-TwistdynamicWip576TT29.1s-79201"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/33.000000-TwistdynamicWip576TT33.3s-34864"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/34.000000-TwistdynamicWip576TT37.5s-17299"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/35.000000-TwistdynamicWip576TT41.7s-00039"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/36.000000-TwistdynamicWip576TT45.9s-82234"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/37.000000-TwistdynamicWip576TT50.1s-73575"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/38.000000-TwistdynamicWip576TT54.4s-34734"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/39.000000-TwistdynamicWip576TT58.6s-63588"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/4.000000-t2tsesag320p2-41180"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/40.000000-TwistdynamicWip576TT62.8s-34413"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/41.000000-TwistdynamicWip576TT67.0s-66936"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/42.000000-TwistdynamicWip576TT71.2s-56640"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/43.000000-TwistdynamicWip576TT75.4s-32380"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/44.000000-TwistdynamicWip576TT79.7s-48962"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/45.000000-TwistdynamicWip576TT83.9s-74708"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/46.000000-TwistdynamicWip576TT88.1s-05868"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/47.000000-TwistdynamicWip576TT92.3s-90524"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/48.000000-TwistdynamicWip576TT96.5s-86975"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/49.000000-TwistdynamicWip576TT100.7s-48021"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/5.000000-t2tsetra320p2-09906"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/50.000000-TwistdynamicWip576TT105.0s-30509"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/51.000000-TwistdynamicWip576TT109.2s-85884"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/52.000000-TwistdynamicWip576TT113.4s-27023"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/53.000000-TwistdynamicWip576TT117.6s-22176"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/54.000000-TwistdynamicWip576TT121.8s-11887"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/55.000000-TwistdynamicWip576TT126.0s-72844"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/56.000000-TwistdynamicWip576TT130.3s-07118"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/57.000000-TwistdynamicWip576TT134.5s-76530"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/58.000000-TwistdynamicWip576TT138.7s-05441"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/59.000000-TwistdynamicWip576TT142.9s-80747"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/6.000000-t2tsecor320p2-02127"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/60.000000-TwistdynamicWip576TT147.1s-80583"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/61.000000-TwistdynamicWip576TT151.3s-39491"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/62.000000-TwistdynamicWip576TT155.6s-07637"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/63.000000-TwistdynamicWip576TT159.8s-21379"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/64.000000-TwistdynamicWip576TT164.0s-30173"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/65.000000-TwistdynamicWip576TT168.2s-72492"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/66.000000-TwistdynamicWip576TT172.4s-91866"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/67.000000-TwistdynamicWip576TT176.6s-23977"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/68.000000-TwistdynamicWip576TT180.8s-64579"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/69.000000-TwistdynamicWip576TT185.1s-93349"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/7.000000-tfl2D36slcres64iPAT-85915"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/70.000000-TwistdynamicWip576TT189.3s-56989"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/71.000000-TwistdynamicWip576TT193.5s-83656"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/72.000000-TwistdynamicWip576TT197.7s-90848"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/73.000000-TwistdynamicWip576TT201.9s-86019"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/74.000000-TwistdynamicWip576TT206.1s-43779"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/75.000000-TwistdynamicWip576TT210.4s-27735"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/76.000000-TwistdynamicWip576TT214.6s-66335"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/77.000000-TwistdynamicWip576TT218.8s-70496"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/78.000000-TwistdynamicWip576TT223.0s-60957"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/79.000000-TwistdynamicWip576TT227.2s-07682"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/8.000000-ep2dadvdiff3Scan4bvalspair511b-12670"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/80.000000-TwistdynamicWip576TT231.4s-14267"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/81.000000-TwistdynamicWip576TT235.7s-20497"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/82.000000-TwistdynamicWip576TT239.9s-54585"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/83.000000-TwistdynamicWip576TT244.1s-57726"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/84.000000-TwistdynamicWip576TT248.3s-41306"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/85.000000-TwistdynamicWip576TT252.5s-81519"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/86.000000-TwistdynamicWip576TT256.7s-93704"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/87.000000-TwistdynamicWip576TT261.0s-07052"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/88.000000-TwistdynamicWip576TT265.2s-45520"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/89.000000-TwistdynamicWip576TT269.4s-69335"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/9.000000-ep2dadvdiff3Scan4bvalspair511bADC-84922"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/90.000000-TwistdynamicWip576TT273.6s-75609"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/91.000000-TwistdynamicWip576TT277.8s-68112"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/92.000000-TwistdynamicWip576TT282.0s-61707"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/93.000000-TwistdynamicWip576TT286.2s-10679"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/94.000000-TwistdynamicWip576TT290.5s-01282"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/95.000000-TwistdynamicWip576TT294.7s-36144"
+        },
+        {
+            "patient_id": "ProstateX-0218",
+            "study_id": "02-18-2011",
+            "path": "ProstateX-0218/02-18-2011/96.000000-TwistdynamicWip576TT298.9s-92736"
         }
     ]
 }
