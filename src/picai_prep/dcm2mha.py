@@ -246,9 +246,9 @@ class Dicom2MHACase():
     def valid_series(self):
         return [item for item in self.series if item.is_valid]
 
-    def invalidate(self):
+    def invalidate(self, reason: str):
         for serie in self.valid_series:
-            serie.error = ConverterException('Invalidated due to critical error in sibling')
+            serie.error = ConverterException(f'Invalidated: {reason}')
 
     def write_log(self, msg: str):
         self._log.append(msg)
@@ -278,7 +278,8 @@ class Dicom2MHACase():
                               *[f'\t{key}: {value}' for key, value in summary.items()],
                               '', *serie_log, ''])
 
-    def convert(self, output_dir):
+    def convert(self, *args):
+        output_dir, = args
         try:
             self.initialize()
             self.extract_metadata()
@@ -286,7 +287,7 @@ class Dicom2MHACase():
             self.resolve_duplicates()
             self.process_and_write(output_dir)
         except Exception as e:
-            self.invalidate()
+            self.invalidate(str(e))
             logging.error(str(e))
         finally:
             return self.compile_log()
@@ -299,6 +300,7 @@ class Dicom2MHACase():
             full_path = self.input_dir / path
             serie = Series(full_path, self.patient_id, self.study_id)
             try:
+                # if we find duplicate paths with the same patient and study id...
                 if path in full_paths:
                     raise FileExistsError(path)
                 full_paths.add(full_path)
@@ -310,7 +312,7 @@ class Dicom2MHACase():
                 self.series.append(serie)
 
         if not all([serie.is_valid for serie in self.series]):
-            self.invalidate()
+            self.invalidate('critical error in sibling')
 
     def extract_metadata(self):
         self.write_log(f'Extracting metadata from {plural(len(self.valid_series), "serie")}')

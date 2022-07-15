@@ -113,6 +113,10 @@ class MHA2nnUNetSettings:
     num_threads: int = 4
     verbose: int = 1
 
+    @property
+    def task_name(self) -> str:
+        return self.dataset_json['task']
+
 
 @dataclass
 class MHA2nnUNetCase():
@@ -131,8 +135,8 @@ class MHA2nnUNetCase():
     def __repr__(self):
         return f'Case({self.patient_id}_{self.study_id})'
 
-    def invalidate(self):
-        self.error = ConverterException('Invalidated due to critical error')
+    def invalidate(self, reason: str):
+        self.error = ConverterException(f'Invalidated: {reason}')
 
     @property
     def is_valid(self):
@@ -144,17 +148,55 @@ class MHA2nnUNetCase():
     def compile_log(self):
         return ''
 
-    def convert(self, output_dir):
+    def convert(self, *args):
+        scans_out_dir, annotations_out_dir = args
         try:
             self.initialize()
         except Exception as e:
-            self.invalidate()
+            self.invalidate(str(e))
             logging.error(str(e))
         finally:
             return self.compile_log()
 
     def initialize(self):
-        pass
+            self._log = [f'Importing {plural(len(self.scan_paths), "scans")}']
+
+            self.scans, missing_paths = [], []
+            # check if all scans exist and append to conversion plan
+            # except Exception as e:
+            #     serie.error = e
+            #     logging.error(str(e))
+            # finally:
+            #     self.write_log(f'\t+ ({len(self.series)}) {full_path}')
+            #     self.series.append(serie)
+
+            try:
+                for i, scan_path in enumerate(self.scan_paths):
+                    # check (relative) path of input scans
+                    path = self.input_dir / scan_path
+                    if not path.exists():
+                        missing_paths.append(path)
+                        continue
+
+                    self.scans.append(path)
+                    self.write_log(f'\t+ ({len(self.scans)}) {path}')
+
+                if len(missing_paths) > 0:
+                    raise FileNotFoundError(','.join([str(p) for p in missing_paths]))
+            except Exception as e:
+                self.error = e
+                logging.error(str(e))
+
+            if self.annotations_dir:
+                self.write_log(f'Importing annotation')
+                self.annotation = self.input_dir / self.annotation_path
+                if not self.annotation.exists():
+                    raise FileNotFoundError(self.annotation)
+
+                self.write_log(f'\t+ {self.annotation}')
+
+            if all([os.path.exists(path) for path in output_paths]):
+                self.invalidate('all files already converted')
         # self._log = [f'Importing {plural(len(self.paths), "serie")}']
         #
         # full_paths = set()
@@ -217,9 +259,11 @@ class MHA2nnUNetCase():
 class MHA2nnUNetConverter:
     def __init__(
         self,
-        input_dir: PathLike,
         output_dir: PathLike,
+        scans_dir: PathLike,
+        scans_out_dirname: str = None,
         annotations_dir: Optional[PathLike] = None,
+        annotations_out_dirname: Optional[str] = None,
         mha2nnunet_settings: Union[PathLike, Dict] = None
     ):
         """
@@ -227,11 +271,6 @@ class MHA2nnUNetConverter:
         ----------
         WIP
         """
-        self.input_dir = Path(input_dir)
-        self.annotations_dir = Path(annotations_dir)
-        self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-
         # parse settings
         if isinstance(mha2nnunet_settings, (Path, str)):
             with open(mha2nnunet_settings) as fp:
@@ -244,22 +283,31 @@ class MHA2nnUNetConverter:
             **mha2nnunet_settings.get('options', {})
         )
 
+        self.scans_dir = Path(scans_dir)
+        self.annotations_dir = Path(annotations_dir) if annotations_dir else None
+
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        self.scans_out_dir = output_dir / self.settings.task_name / scans_out_dirname
+        self.annotations_out_dir = output_dir / self.settings.task_name / annotations_out_dirname if annotations_dir else None
+
         self.cases = self._init_cases(mha2nnunet_settings['archive'])
 
-        logfile = self.output_dir / f'picai_prep_{datetime.now().strftime("%Y%m%d%H%M%S")}.log'
+        logfile = output_dir / f'picai_prep_{datetime.now().strftime("%Y%m%d%H%M%S")}.log'
         logging.basicConfig(level=logging.INFO, format='%(message)s', filename=logfile)
-        logging.info(f'Output directory set to {self.output_dir.absolute().as_posix()}')
+        logging.info(f'Output directory set to {output_dir.absolute().as_posix()}')
         print(f'Writing log to {logfile.absolute()}')
 
     def _init_cases(self, archive: List[Dict]) -> List[MHA2nnUNetCase]:
-        return [MHA2nnUNetCase(self.input_dir, self.annotations_dir, **kwargs, settings=self.settings) for kwargs in archive]
+        return [MHA2nnUNetCase(self.scans_dir, self.annotations_dir, **kwargs, settings=self.settings) for kwargs in archive]
 
     def convert(self):
         start_time = datetime.now()
         logging.info(f'MHA2nnUNet conversion started at {start_time.isoformat()}\n')
 
         with ThreadPoolExecutor(max_workers=self.settings.num_threads) as pool:
-            futures = {pool.submit(case.convert, self.output_dir): case for case in self.cases}
+            futures = {pool.submit(case.convert, (self.scans_out_dir, self.annotations_out_dir)): case for case in self.cases}
             for future in tqdm(as_completed(futures), total=len(self.cases)):
                 case_log = future.result()
                 logging.info(case_log)
