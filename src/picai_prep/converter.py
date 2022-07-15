@@ -22,11 +22,21 @@ class ArchiveItemPathNotFoundError(ConverterException):
 
 
 @dataclass
+class Settings:
+    num_threads: int = 4
+    verbose: int = 1
+
+
+
+@dataclass
 class Case:
-    input_dir: Path
     patient_id: str
     study_id: str
 
     def __repr__(self):
         return f'Case({self.patient_id}_{self.study_id})'
+
+    @property
+    def subject_id(self):
+        return f'{self.patient_id}_{self.study_id}'
 

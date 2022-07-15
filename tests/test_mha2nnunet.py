@@ -59,12 +59,13 @@ def test_mha2nnunet(
 
     # convert MHA archive to nnUNet raw data
     archive = MHA2nnUNetConverter(
-        input_dir=input_dir.as_posix(),
-        annotations_dir=annotations_dir.as_posix(),
         output_dir=output_dir.as_posix(),
-        mha2nnunet_settings=settings_path,
+        scans_dir=input_dir.as_posix(),
+        annotations_dir=annotations_dir.as_posix(),
+        mha2nnunet_settings=settings_path
     )
     archive.convert()
+    archive.create_dataset_json()
 
     # check dataset.json
     path_out = task_dir / "dataset.json"

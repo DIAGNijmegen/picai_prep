@@ -59,7 +59,7 @@ class UnreadableDICOMError(ConverterException):
 
 @dataclass
 class Dicom2MHASettings:
-    mappings: Dict[str, Dict[str, List[str]]]
+    mappings: Dict[str, Dict[str, List[str]]] = None
     num_threads: int = 4
     verify_dicom_filenames: bool = True
     allow_duplicates: bool = False
@@ -68,6 +68,8 @@ class Dicom2MHASettings:
     values_match_func: Union[str, Callable[[str, str], bool]] = "lower_strip_equals"
 
     def __post_init__(self):
+        if not self.mappings:
+            raise ValueError('mappings cannot be None')
         # Validate the mappings
         for mapping_name, mapping in self.mappings.items():
             for key, values in mapping.items():
@@ -246,9 +248,9 @@ class Dicom2MHACase():
     def valid_series(self):
         return [item for item in self.series if item.is_valid]
 
-    def invalidate(self, reason: str):
+    def invalidate(self, error: Exception):
         for serie in self.valid_series:
-            serie.error = ConverterException(f'Invalidated: {reason}')
+            serie.error = error
 
     def write_log(self, msg: str):
         self._log.append(msg)
@@ -287,13 +289,12 @@ class Dicom2MHACase():
             self.resolve_duplicates()
             self.process_and_write(output_dir)
         except Exception as e:
-            self.invalidate(str(e))
-            logging.error(str(e))
+            self.invalidate(e)
         finally:
             return self.compile_log()
 
     def initialize(self):
-        self._log = [f'Importing {plural(len(self.paths), "serie")}']
+        self.write_log(f'Importing {plural(len(self.paths), "serie")}')
 
         full_paths = set()
         for path in self.paths:
@@ -431,32 +432,34 @@ class Dicom2MHAConverter:
         """
         Parameters
         ----------
-        - input_dir: path to the DICOM archive. Used as base path for the relative paths
-            of the archive items.
-        - output_dir: path to store the MHA archive.
-        - dcm2mha_settings: object with mappings, cases and optional parameters. May be
-            a dictionary containing `mappings`, `archive`, and optionally `options`,
-            or a path to a JSON file with these elements.
+        input_dir: PathLike
+            path to the DICOM archive. Used as base path for the relative paths of the archive items.
+        output_dir: PathLike
+            path to store the resulting MHA archive.
+        dcm2mha_settings: Union[PathLike, Dict], default: None
+            object with mappings, cases and optional parameters. May be a dictionary containing mappings, archive,
+            and optionally options, or a path to a JSON file with these elements.
             - mappings: criteria to map DICOM sequences to their MHA counterparts
-            - cases: list of DICOM sequences in the DICOM archive. Each case should contain:
-                - patient_id: unique patient identifier
-                - study_id: unique study identifier
-                - path: path to DICOM sequence.
+            - cases: list of DICOM sequences in the DICOM archive. Each case is to be an object with a patient_id,
+                study_id and path to DICOM sequence
             - options: (optional)
-                - num_threads: number of multithreading threads. Default: 4.
+                - num_threads: number of multithreading threads.
+                    Default: 4.
                 - verify_dicom_filenames: whether to check if DICOM filenames contain consecutive
-                    numbers. Default: True
+                    numbers.
+                    Default: True
                 - allow_duplicates: whether multiple DICOM series can map to the same MHA postfix.
                     Default: False
                 - metadata_match_func: method to match DICOM metadata to MHA sequences. Only use
                     this if you know what you're doing.
+                    Default: None
                 - values_match_func: criteria to consider two values a match, when comparing the
                     value from the DICOM metadata against the provided allowed vaues in the mapping.
+                    Default: None
                 - verbose: control logfile verbosity. 0 does not output a logfile,
                     1 logs cases which have critically failed, 2 logs all cases (may lead to
                     very large log files)
                     Default: 1
-
         """
         self.input_dir = Path(input_dir)
         self.output_dir = Path(output_dir)
