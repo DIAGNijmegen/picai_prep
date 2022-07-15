@@ -15,38 +15,31 @@
 
 import json
 import logging
-from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional,  Union
+from typing import Callable, Dict, List, Optional,  Union
 
 import jsonschema
 import SimpleITK as sitk
-from tqdm import tqdm
 
 from picai_prep.data_utils import PathLike, atomic_image_write
 from picai_prep.preprocessing import PreprocessingSettings, Sample
 from picai_prep.utilities import mha2nnunet_schema, plural
-from picai_prep.converter import Case, Settings
+from picai_prep.converter import Case, Converter
 
 
 @dataclass
-class MHA2nnUNetSettings(Settings):
-    dataset_json: dict = None
-    preprocessing: PreprocessingSettings = None
+class MHA2nnUNetSettings:
+    dataset_json: dict
+    preprocessing: PreprocessingSettings
     scans_dirname: PathLike = "imagesTr"
     annotation_dirname: PathLike = "labelsTr"
     annotation_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
     annotation_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
     scan_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
     scan_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
-
-    def __post_init__(self):
-        if not self.dataset_json:
-            raise ValueError('dataset_json cannot be None')
-        if not self.preprocessing:
-            raise ValueError('preprocessing cannot be None')
+    num_threads: int = 4
+    verbose: int = 1
 
     @property
     def task_name(self) -> str:
@@ -54,29 +47,18 @@ class MHA2nnUNetSettings(Settings):
 
 
 @dataclass
-class MHA2nnUNetCase(Case):
+class _MHA2nnUNetCaseBase:
     scans_dir: Path
     annotations_dir: Path
     scan_paths: List[Path]
-    annotation_path: Optional[Path]
     settings: MHA2nnUNetSettings
 
+
+@dataclass
+class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
+    annotation_path: Optional[Path] = None
     scans: List[Path] = field(default_factory=list)
     annotation: Path = None
-
-    error: Optional[Exception] = None
-
-    _log: List[str] = field(default_factory=list)
-
-    def invalidate(self, error: Exception):
-        self.error = error
-
-    @property
-    def is_valid(self):
-        return self.error is None
-
-    def write_log(self, msg: str):
-        self._log.append(msg)
 
     def compile_log(self):
         if self.settings.verbose == 0:
@@ -89,15 +71,10 @@ class MHA2nnUNetCase(Case):
                               f'\tSTUDY ID\t{self.study_id}\n',
                               *self._log])
 
-    def convert(self, *args):
+    def _convert(self, *args):
         scans_out_dir, annotations_out_dir = args
-        try:
-            self.initialize()
-            self.process_and_write(scans_out_dir, annotations_out_dir)
-        except Exception as e:
-            self.invalidate(e)
-        finally:
-            return self.compile_log()
+        self.initialize()
+        self.process_and_write(scans_out_dir, annotations_out_dir)
 
     def initialize(self):
             self.write_log(f'Importing {plural(len(self.scan_paths), "scans")}')
@@ -157,7 +134,7 @@ class MHA2nnUNetCase(Case):
             self.write_log(f'Wrote annotation to {destination}')
 
 
-class MHA2nnUNetConverter:
+class MHA2nnUNetConverter(Converter):
     def __init__(
         self,
         output_dir: PathLike,
@@ -216,27 +193,13 @@ class MHA2nnUNetConverter:
 
         self.cases = self._init_cases(mha2nnunet_settings['archive'])
 
-        logfile = output_dir / f'picai_prep_{datetime.now().strftime("%Y%m%d%H%M%S")}.log'
-        logging.basicConfig(level=logging.INFO, format='%(message)s', filename=logfile)
-        logging.info(f'Output directory set to {output_dir.absolute().as_posix()}')
-        print(f'Writing log to {logfile.absolute()}')
+        self.initialize_log(output_dir, self.settings.verbose)
 
     def _init_cases(self, archive: List[Dict]) -> List[MHA2nnUNetCase]:
-        return [MHA2nnUNetCase(self.scans_dir, self.annotations_dir, **kwargs, settings=self.settings) for kwargs in archive]
+        return [MHA2nnUNetCase(scans_dir=self.scans_dir, annotations_dir=self.annotations_dir, settings=self.settings, **kwargs) for kwargs in archive]
 
     def convert(self):
-        start_time = datetime.now()
-        logging.info(f'MHA2nnUNet conversion started at {start_time.isoformat()}\n')
-
-        with ThreadPoolExecutor(max_workers=self.settings.num_threads) as pool:
-            futures = {pool.submit(case.convert, self.scans_out_dir, self.annotations_out_dir): case for case in self.cases}
-            for future in tqdm(as_completed(futures), total=len(self.cases)):
-                case_log = future.result()
-                if case_log:
-                    logging.info(case_log)
-
-        end_time = datetime.now()
-        logging.info(f'MHA2nnUNet conversion ended at {end_time.isoformat()}\n\t(runtime {end_time - start_time})')
+        self._convert('MHA2nnUNet', self.settings.num_threads, self.cases, (self.scans_out_dir, self.annotations_out_dir))
 
     def create_dataset_json(self, path: PathLike = '.', is_testset: bool = False, merge: 'MHA2nnUNetConverter' = None) -> Dict:
         """

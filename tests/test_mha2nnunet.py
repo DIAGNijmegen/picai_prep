@@ -150,12 +150,12 @@ def test_mha2nnunet_inference(
 
     # convert MHA archive to nnUNet raw data
     archive = MHA2nnUNetConverter(
-        input_path=input_dir.as_posix(),
-        output_path=output_dir.as_posix(),
-        out_dir_scans="imagesTs",
-        settings_path=settings_path
+        output_dir=output_dir.as_posix(),
+        scans_dir=input_dir.as_posix(),
+        mha2nnunet_settings=settings_path
     )
     archive.convert()
+    archive.create_dataset_json()
 
     # check dataset.json
     path_out = output_dir / task_name / "dataset.json"

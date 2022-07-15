@@ -15,9 +15,7 @@ import json
 import logging
 import os
 import re
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
 
@@ -25,11 +23,10 @@ import jsonschema
 import numpy as np
 import pydicom.errors
 import SimpleITK as sitk
-from tqdm import tqdm
 
 from picai_prep.data_utils import PathLike, atomic_image_write
 from picai_prep.utilities import dcm2mha_schema, dicom_tags, get_pydicom_value, lower_strip, make_sitk_readers, plural
-from picai_prep.converter import ConverterException, ArchiveItemPathNotFoundError, Case
+from picai_prep.converter import ConverterException, ArchiveItemPathNotFoundError, Case, Converter
 
 Metadata = Dict[str, str]
 Mapping = Dict[str, List[str]]
@@ -59,17 +56,15 @@ class UnreadableDICOMError(ConverterException):
 
 @dataclass
 class Dicom2MHASettings:
-    mappings: Dict[str, Dict[str, List[str]]] = None
-    num_threads: int = 4
+    mappings: Dict[str, Dict[str, List[str]]]
     verify_dicom_filenames: bool = True
     allow_duplicates: bool = False
-    verbose: int = 2
     metadata_match_func: Optional[Callable[[Metadata, Mappings], bool]] = None
     values_match_func: Union[str, Callable[[str, str], bool]] = "lower_strip_equals"
+    num_threads: int = 4
+    verbose: int = 1
 
     def __post_init__(self):
-        if not self.mappings:
-            raise ValueError('mappings cannot be None')
         # Validate the mappings
         for mapping_name, mapping in self.mappings.items():
             for key, values in mapping.items():
@@ -230,19 +225,15 @@ class Series:
 
 
 @dataclass
-class Dicom2MHACase():
+class _Dicom2MHACaseBase:
     input_dir: Path
-    patient_id: str
-    study_id: str
     paths: List[PathLike]
     settings: Dicom2MHASettings
 
+
+@dataclass
+class Dicom2MHACase(Case, _Dicom2MHACaseBase):
     series: List[Series] = field(default_factory=list)
-
-    _log: List[str] = field(default_factory=list)
-
-    def __repr__(self):
-        return f'Case({self.patient_id}_{self.study_id})'
 
     @property
     def valid_series(self):
@@ -280,18 +271,13 @@ class Dicom2MHACase():
                               *[f'\t{key}: {value}' for key, value in summary.items()],
                               '', *serie_log, ''])
 
-    def convert(self, *args):
+    def _convert(self, *args):
         output_dir, = args
-        try:
-            self.initialize()
-            self.extract_metadata()
-            self.apply_mappings()
-            self.resolve_duplicates()
-            self.process_and_write(output_dir)
-        except Exception as e:
-            self.invalidate(e)
-        finally:
-            return self.compile_log()
+        self.initialize()
+        self.extract_metadata()
+        self.apply_mappings()
+        self.resolve_duplicates()
+        self.process_and_write(output_dir)
 
     def initialize(self):
         self.write_log(f'Importing {plural(len(self.paths), "serie")}')
@@ -313,7 +299,7 @@ class Dicom2MHACase():
                 self.series.append(serie)
 
         if not all([serie.is_valid for serie in self.series]):
-            self.invalidate('critical error in sibling')
+            self.invalidate(ConverterException('critical error in sibling'))
 
     def extract_metadata(self):
         self.write_log(f'Extracting metadata from {plural(len(self.valid_series), "serie")}')
@@ -422,7 +408,7 @@ class Dicom2MHACase():
                        f'{len(skips)} skipped{f" {skips}" if len(skips) > 0 else ""})')
 
 
-class Dicom2MHAConverter:
+class Dicom2MHAConverter(Converter):
     def __init__(
             self,
             input_dir: PathLike,
@@ -478,13 +464,7 @@ class Dicom2MHAConverter:
 
         self.cases = self._init_cases(dcm2mha_settings['archive'])
 
-        if self.settings.verbose > 0:
-            logfile = self.output_dir / f'picai_prep_{datetime.now().strftime("%Y%m%d%H%M%S")}.log'
-            logging.basicConfig(level=logging.INFO, format='%(message)s', filename=logfile)
-            logging.info(f'Output directory set to {self.output_dir.absolute().as_posix()}')
-            print(f'Writing log to {logfile.absolute()}')
-        else:
-            logging.disable(logging.INFO)
+        self.initialize_log(self.output_dir, self.settings.verbose)
 
     def _init_cases(self, archive: List[Dict]) -> List[Dicom2MHACase]:
         cases = {}
@@ -492,23 +472,13 @@ class Dicom2MHAConverter:
             key = tuple(item[id] for id in ["patient_id", "study_id"])
             cases[key] = cases.get(key, []) + [item['path']]
         return [
-            Dicom2MHACase(self.input_dir, patient_id, study_id, paths, self.settings)
+            Dicom2MHACase(input_dir=self.input_dir, patient_id=patient_id,
+                          study_id=study_id, paths=paths, settings=self.settings)
             for (patient_id, study_id), paths in cases.items()
         ]
 
     def convert(self):
-        start_time = datetime.now()
-        logging.info(f'Dicom2MHA conversion started at {start_time.isoformat()}\n')
-
-        with ThreadPoolExecutor(max_workers=self.settings.num_threads) as pool:
-            futures = {pool.submit(case.convert, self.output_dir): case for case in self.cases}
-            for future in tqdm(as_completed(futures), total=len(self.cases)):
-                case_log = future.result()
-                if case_log:
-                    logging.info(case_log)
-
-        end_time = datetime.now()
-        logging.info(f'Dicom2MHA conversion ended at {end_time.isoformat()}\n\t(runtime {end_time - start_time})')
+        self._convert('Dicom2MHA', self.settings.num_threads, self.cases, (self.output_dir, ))
 
 
 def read_image_series(image_series_path: PathLike) -> sitk.Image:
