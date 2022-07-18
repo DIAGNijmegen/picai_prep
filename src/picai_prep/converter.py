@@ -1,10 +1,11 @@
 import logging
-from datetime import datetime
-from abc import abstractmethod
+from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
-from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from tqdm import tqdm
 
 from picai_prep.data_utils import PathLike
@@ -28,7 +29,7 @@ class ArchiveItemPathNotFoundError(ConverterException):
 
 
 @dataclass
-class Case:
+class Case(ABC):
     patient_id: str
     study_id: str
 

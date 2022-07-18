@@ -251,7 +251,7 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
 
     def compile_log(self):
         if self.settings.verbose == 0:
-            return None
+            return
 
         divider = '=' * 120
         summary = {}
