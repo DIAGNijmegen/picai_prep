@@ -24,9 +24,12 @@ import numpy as np
 import pydicom.errors
 import SimpleITK as sitk
 
+from picai_prep.converter import (ArchiveItemPathNotFoundError, Case,
+                                  Converter, ConverterException)
 from picai_prep.data_utils import PathLike, atomic_image_write
-from picai_prep.utilities import dcm2mha_schema, dicom_tags, get_pydicom_value, lower_strip, make_sitk_readers, plural
-from picai_prep.converter import ConverterException, ArchiveItemPathNotFoundError, Case, Converter
+from picai_prep.utilities import (dcm2mha_schema, dicom_tags,
+                                  get_pydicom_value, lower_strip,
+                                  make_sitk_readers, plural)
 
 Metadata = Dict[str, str]
 Mapping = Dict[str, List[str]]
@@ -162,9 +165,9 @@ class Series:
 
     @staticmethod
     def metadata_matches(
-            metadata: Metadata,
-            mapping: Mapping,
-            values_match_func: Callable[[str, str], bool],
+        metadata: Metadata,
+        mapping: Mapping,
+        values_match_func: Callable[[str, str], bool],
     ) -> bool:
         """
         Determine whether Series' metadata matches the mapping.
@@ -183,10 +186,10 @@ class Series:
         return True
 
     def apply_mappings(
-            self,
-            mappings: Mappings,
-            metadata_match_func: Optional[Callable[[Metadata, Mappings], bool]] = None,
-            values_match_func: Optional[Callable[[str, str], bool]] = None,
+        self,
+        mappings: Mappings,
+        metadata_match_func: Optional[Callable[[Metadata, Mappings], bool]] = None,
+        values_match_func: Optional[Callable[[str, str], bool]] = None,
     ) -> None:
         """
         Apply mappings to the series
@@ -410,10 +413,10 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
 
 class Dicom2MHAConverter(Converter):
     def __init__(
-            self,
-            input_dir: PathLike,
-            output_dir: PathLike,
-            dcm2mha_settings: Union[PathLike, Dict] = None,
+        self,
+        input_dir: PathLike,
+        output_dir: PathLike,
+        dcm2mha_settings: Union[PathLike, Dict] = None,
     ):
         """
         Parameters
