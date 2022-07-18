@@ -74,7 +74,7 @@ class Case(ABC):
 class Converter:
     @staticmethod
     def initialize_log(output_dir: Path, verbose: int):
-        if verbose > 0:
+        if verbose >= 1:
             logfile = output_dir / f'picai_prep_{datetime.now().strftime("%Y%m%d%H%M%S")}.log'
             logging.basicConfig(level=logging.INFO, format='%(message)s', filename=logfile)
             logging.info(f'Output directory set to {output_dir.absolute().as_posix()}')
