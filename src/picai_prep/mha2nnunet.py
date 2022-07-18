@@ -201,49 +201,57 @@ class MHA2nnUNetConverter(Converter):
     def convert(self):
         self._convert('MHA2nnUNet', self.settings.num_threads, self.cases, (self.scans_out_dir, self.annotations_out_dir))
 
-    def create_dataset_json(self, path: PathLike = '.', is_testset: bool = False, merge: 'MHA2nnUNetConverter' = None) -> Dict:
+    def prepare_dataset_paths(self):
+        """Prepare paths to scans and annotation in nnU-Net dataset.json format"""
+        return [
+            {
+                "image": f"./{self.scans_out_dir.name}/{case.subject_id}.nii.gz",
+                "label": f"./{self.annotations_out_dir.name}/{case.subject_id}.nii.gz"
+            }
+            for case in self.cases
+        ]
+
+    def create_dataset_json(self, path: PathLike = 'dataset.json', is_testset: bool = False) -> Dict:
         """
         Create dataset.json for nnUNet raw data archive.
 
         Parameters
         ----------
-        path: PathLike, default: '.'
-            dir path to save ./dataset.json to. If None, will not output a file, if '.', will output to `output_dir`.
+        path: PathLike, default: nnU-Net raw data archive folder / task / dataset.json
+            path to save dataset info to. If None, will not output a file.
         is_testset: bool, default: False
-            whether this conversation was a test set or a training set
-        merge: MHA2nnUNetConverter, default: None
-            merge the contents of this converter with another. If `is_testset` is True, the other converter is
-            assumed to be a training set, and vice versa. All other values in dataset.json are taken from this converter.
+            whether this conversation was a test set or a training set.
 
         Returns
         -------
         dataset : dict
             contents of dataset.json
         """
+        if path is None:
+            return
+
+        dataset_path = self.scans_out_dir.parent / path
+        logging.info(f'Saving dataset info to {dataset_path}')
+
         # use contents of archive->dataset_json as starting point
         dataset = self.settings.dataset_json
         if 'name' not in dataset:
             dataset['name'] = '_'.join(self.settings.task_name.split('_')[1:])
 
-        testset = self if is_testset else merge
-        trainingset = self if not is_testset else merge
+        if is_testset:
+            dataset["numTest"] = len(self.cases)
+            dataset["test"] = self.prepare_dataset_paths()
+            if "numTraining" not in dataset:
+                dataset["numTraining"] = 0
+                dataset["training"] = []
+        else:
+            dataset['numTraining'] = len(self.cases)
+            dataset["training"] = self.prepare_dataset_paths()
+            if "numTest" not in dataset:
+                dataset["numTest"] = 0
+                dataset["test"] = []
 
-        dataset['numTraining'] = len(trainingset.cases) if trainingset else 0
-        dataset['numTest'] = len(testset.cases) if testset else 0
-
-        for set, key in [(trainingset, 'training'), (testset, 'test')]:
-            dataset[key] = [
-                {
-                    "image": f"./{set.scans_out_dir.name}/{case.subject_id}.nii.gz",
-                    "label": f"./{set.annotations_out_dir.name}/{case.subject_id}.nii.gz"
-                }
-                for case in set.cases
-            ] if set else []
-
-        if path:
-            dataset_fn = self.scans_out_dir.parent / 'dataset.json' if path == '.' else Path(path / 'dataset.json')
-            logging.info(f'Saving dataset info to {dataset_fn}')
-            with open(dataset_fn, 'w') as fp:
-                json.dump(dataset, fp, indent=4)
+        with open(dataset_path, 'w') as fp:
+            json.dump(dataset, fp, indent=4)
 
         return dataset
