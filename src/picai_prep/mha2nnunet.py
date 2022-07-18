@@ -80,7 +80,7 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
         self.write_log(f'Importing {plural(len(self.scan_paths), "scans")}')
 
         missing_paths = []
-        for i, scan_path in enumerate(self.scan_paths):
+        for scan_path in self.scan_paths:
             # check (relative) path of input scans
             path = self.scans_dir / scan_path
             if not path.exists():
