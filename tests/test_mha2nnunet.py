@@ -152,16 +152,20 @@ def test_mha2nnunet_inference(
     archive = MHA2nnUNetConverter(
         output_dir=output_dir.as_posix(),
         scans_dir=input_dir.as_posix(),
+        scans_out_dirname='imagesTs',
         mha2nnunet_settings=settings_path
     )
     archive.convert()
-    archive.create_dataset_json()
+
+    ### this step is skipped
+    # archive.create_dataset_json()
 
     # check dataset.json
-    path_out = output_dir / task_name / "dataset.json"
-    path_out_expected = output_expected_dir / task_name / "dataset.json"
-    with open(path_out) as fp1, open(path_out_expected) as fp2:
-        assert json.load(fp1) == json.load(fp2)
+    # path_out = output_dir / task_name / "dataset.json"
+    # path_out_expected = output_expected_dir / task_name / "dataset.json"
+    # with open(path_out) as fp1, open(path_out_expected) as fp2:
+    #     assert json.load(fp1) == json.load(fp2)
+    ###
 
     # compare output
     for subject_id in subject_list:
