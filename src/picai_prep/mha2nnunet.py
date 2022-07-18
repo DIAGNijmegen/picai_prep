@@ -17,15 +17,15 @@ import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, List, Optional,  Union
+from typing import Callable, Dict, List, Optional, Union
 
 import jsonschema
 import SimpleITK as sitk
 
+from picai_prep.converter import Case, Converter
 from picai_prep.data_utils import PathLike, atomic_image_write
 from picai_prep.preprocessing import PreprocessingSettings, Sample
 from picai_prep.utilities import mha2nnunet_schema, plural
-from picai_prep.converter import Case, Converter
 
 
 @dataclass
@@ -77,29 +77,29 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
         self.process_and_write(scans_out_dir, annotations_out_dir)
 
     def initialize(self):
-            self.write_log(f'Importing {plural(len(self.scan_paths), "scans")}')
+        self.write_log(f'Importing {plural(len(self.scan_paths), "scans")}')
 
-            missing_paths = []
-            for i, scan_path in enumerate(self.scan_paths):
-                # check (relative) path of input scans
-                path = self.scans_dir / scan_path
-                if not path.exists():
-                    missing_paths.append(path)
-                    continue
+        missing_paths = []
+        for i, scan_path in enumerate(self.scan_paths):
+            # check (relative) path of input scans
+            path = self.scans_dir / scan_path
+            if not path.exists():
+                missing_paths.append(path)
+                continue
 
-                self.scans.append(path)
-                self.write_log(f'\t+ ({len(self.scans)}) {path}')
+            self.scans.append(path)
+            self.write_log(f'\t+ ({len(self.scans)}) {path}')
 
-            if len(missing_paths) > 0:
-                raise FileNotFoundError(','.join([str(p) for p in missing_paths]))
+        if len(missing_paths) > 0:
+            raise FileNotFoundError(','.join([str(p) for p in missing_paths]))
 
-            if self.annotations_dir:
-                self.write_log(f'Importing annotation')
-                self.annotation = self.annotations_dir / self.annotation_path
-                if not self.annotation.exists():
-                    raise FileNotFoundError(self.annotation)
+        if self.annotations_dir:
+            self.write_log('Importing annotation')
+            self.annotation = self.annotations_dir / self.annotation_path
+            if not self.annotation.exists():
+                raise FileNotFoundError(self.annotation)
 
-                self.write_log(f'\t+ {self.annotation}')
+            self.write_log(f'\t+ {self.annotation}')
 
     def process_and_write(self, scans_out_dir: Path, annotations_out_dir: Path):
         self.write_log(f'Writing {plural(len(self.scans), "scan")}' + ' including annotation' if self.annotation else '')
