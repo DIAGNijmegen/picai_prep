@@ -163,7 +163,7 @@ class MHA2nnUNetConverter(Converter):
             May be a dictionary containing mappings, dataset.json, and optionally options, or a path to a JSON file with these elements.
             - dataset_json: see nnU-Net's dataset conversion on details for the dataset.json file:
                 https://github.com/MIC-DKFZ/nnUNet/blob/master/documentation/dataset_conversion.md
-            - cases: list of objects. Each case is to be an object with a patient_id,
+            - cases: list of objects. Each case should be an object with a patient_id,
                 study_id, relative paths to scans and optionally a path to an annotation
             - options: (optional)
                 - num_threads: number of multithreading threads.
@@ -244,24 +244,24 @@ class MHA2nnUNetConverter(Converter):
         logging.info(f'Saving dataset info to {dataset_path}')
 
         # use contents of archive->dataset_json as starting point
-        dataset = self.settings.dataset_json
-        if 'name' not in dataset:
-            dataset['name'] = '_'.join(self.settings.task_name.split('_')[1:])
+        dataset_settings = self.settings.dataset_json
+        if 'name' not in dataset_settings:
+            dataset_settings['name'] = '_'.join(self.settings.task_name.split('_')[1:])
 
         if is_testset:
-            dataset["numTest"] = len(self.cases)
-            dataset["test"] = self.prepare_dataset_paths()
-            if "numTraining" not in dataset:
-                dataset["numTraining"] = 0
-                dataset["training"] = []
+            dataset_settings["numTest"] = len(self.cases)
+            dataset_settings["test"] = self.prepare_dataset_paths()
+            if "numTraining" not in dataset_settings:
+                dataset_settings["numTraining"] = 0
+                dataset_settings["training"] = []
         else:
-            dataset['numTraining'] = len(self.cases)
-            dataset["training"] = self.prepare_dataset_paths()
-            if "numTest" not in dataset:
-                dataset["numTest"] = 0
-                dataset["test"] = []
+            dataset_settings['numTraining'] = len(self.cases)
+            dataset_settings["training"] = self.prepare_dataset_paths()
+            if "numTest" not in dataset_settings:
+                dataset_settings["numTest"] = 0
+                dataset_settings["test"] = []
 
         with open(dataset_path, 'w') as fp:
-            json.dump(dataset, fp, indent=4)
+            json.dump(dataset_settings, fp, indent=4)
 
-        return dataset
+        return dataset_settings
