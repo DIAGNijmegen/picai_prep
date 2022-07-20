@@ -17,7 +17,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import jsonschema
 import SimpleITK as sitk
@@ -30,7 +30,7 @@ from picai_prep.utilities import mha2nnunet_schema, plural
 
 @dataclass
 class MHA2nnUNetSettings:
-    dataset_json: dict
+    dataset_json: Dict[str, Any]
     preprocessing: PreprocessingSettings
     scans_dirname: PathLike = "imagesTr"
     annotation_dirname: PathLike = "labelsTr"
@@ -58,7 +58,10 @@ class _MHA2nnUNetCaseBase:
 class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
     annotation_path: Optional[Path] = None
     scans: List[Path] = field(default_factory=list)
-    annotation: Path = None
+
+    def __post_init__(self):
+        if self.annotations_dir and self.annotation_path:
+            self.annotation_path = self.annotations_dir / self.annotation_path
 
     def compile_log(self):
         if self.settings.verbose == 0:
@@ -92,19 +95,18 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
         if len(missing_paths) > 0:
             raise FileNotFoundError(','.join([str(p) for p in missing_paths]))
 
-        if self.annotations_dir:
+        if self.annotation_path:
             self.write_log('Importing annotation')
-            self.annotation = self.annotations_dir / self.annotation_path
-            if not self.annotation.exists():
-                raise FileNotFoundError(self.annotation)
+            if not self.annotation_path.exists():
+                raise FileNotFoundError(self.annotation_path)
 
-            self.write_log(f'\t+ {self.annotation}')
+            self.write_log(f'\t+ {self.annotation_path}')
 
     def process_and_write(self, scans_out_dir: Path, annotations_out_dir: Path):
-        self.write_log(f'Writing {plural(len(self.scans), "scan")}' + ' including annotation' if self.annotation else '')
+        self.write_log(f'Writing {plural(len(self.scans), "scan")}' + ' including annotation' if self.annotation_path else '')
 
         sitk_scans = [sitk.ReadImage(scan.as_posix()) for scan in self.scans]
-        sitk_annotation = sitk.ReadImage(self.annotation.as_posix()) if self.annotation else None
+        sitk_annotation = sitk.ReadImage(self.annotation_path.as_posix()) if self.annotation_path else None
 
         # set up Sample
         sample = Sample(
