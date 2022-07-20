@@ -125,14 +125,14 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
 
         # write images
         for i, scan in enumerate(sample.scans):
-            destination = scans_out_dir / f"{self.subject_id}_{i:04d}.nii.gz"
-            atomic_image_write(scan, path=destination, mkdir=True)
-            self.write_log(f'Wrote image to {destination}')
+            destination_path = scans_out_dir / f"{self.subject_id}_{i:04d}.nii.gz"
+            atomic_image_write(scan, path=destination_path, mkdir=True)
+            self.write_log(f'Wrote image to {destination_path}')
 
         if lbl:
-            destination = annotations_out_dir / f"{self.subject_id}.nii.gz"
+            destination_path = annotations_out_dir / f"{self.subject_id}.nii.gz"
             atomic_image_write(sample.lbl, path=annotations_out_dir / f"{self.subject_id}.nii.gz", mkdir=True)
-            self.write_log(f'Wrote annotation to {destination}')
+            self.write_log(f'Wrote annotation to {destination_path}')
 
 
 class MHA2nnUNetConverter(Converter):
@@ -140,10 +140,10 @@ class MHA2nnUNetConverter(Converter):
         self,
         output_dir: PathLike,
         scans_dir: PathLike,
+        mha2nnunet_settings: Union[PathLike, Dict],
         scans_out_dirname: str = 'imagesTr',
         annotations_dir: Optional[PathLike] = None,
         annotations_out_dirname: Optional[str] = 'labelsTr',
-        mha2nnunet_settings: Union[PathLike, Dict] = None
     ):
         """
         Parameters
@@ -151,7 +151,7 @@ class MHA2nnUNetConverter(Converter):
         output_dir: PathLike
             path to store the resulting nnUNet archive.
         scans_dir: PathLike
-            path to the scan archive. Used as base path for the relative paths of the archive items.
+            directory name to store scans in, relative to `output_dir`.
         scans_out_dirname: str, default: 'imagesTr'
             dirname to store scan output, will be a direct descendant of `output_dir`.
         annotations_dir: PathLike
@@ -161,7 +161,8 @@ class MHA2nnUNetConverter(Converter):
         mha2nnunet_settings: Union[PathLike, Dict]
             object with cases, nnUNet-shaped dataset.json and optional parameters.
             May be a dictionary containing mappings, dataset.json, and optionally options, or a path to a JSON file with these elements.
-            - dataset_json: see nnUNet description of a valid dataset.json object.
+            - dataset_json: see nnU-Net's dataset conversion on details for the dataset.json file:
+                https://github.com/MIC-DKFZ/nnUNet/blob/master/documentation/dataset_conversion.md
             - cases: list of objects. Each case is to be an object with a patient_id,
                 study_id, relative paths to scans and optionally a path to an annotation
             - options: (optional)
