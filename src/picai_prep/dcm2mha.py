@@ -242,13 +242,6 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
     def valid_series(self):
         return [item for item in self.series if item.is_valid]
 
-    def invalidate(self, error: Exception):
-        for serie in self.valid_series:
-            serie.error = error
-
-    def write_log(self, msg: str):
-        self._log.append(msg)
-
     def compile_log(self):
         if self.settings.verbose == 0:
             return
