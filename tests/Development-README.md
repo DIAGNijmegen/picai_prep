@@ -22,3 +22,6 @@ pytest
 mypy src
 flake8 src
 ```
+
+# Programming conventions
+AutoPEP8 for formatting (this can be done automatically on save, see e.g. https://code.visualstudio.com/docs/python/editing)
