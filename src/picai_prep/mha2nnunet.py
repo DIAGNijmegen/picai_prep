@@ -71,8 +71,7 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
                               f'\tSTUDY ID\t{self.study_id}\n',
                               *self._log])
 
-    def _convert(self, *args):
-        scans_out_dir, annotations_out_dir = args
+    def convert_item(self, scans_out_dir: Path, annotations_out_dir: Path) -> None:
         self.initialize()
         self.process_and_write(scans_out_dir, annotations_out_dir)
 
@@ -199,7 +198,15 @@ class MHA2nnUNetConverter(Converter):
         return [MHA2nnUNetCase(scans_dir=self.scans_dir, annotations_dir=self.annotations_dir, settings=self.settings, **kwargs) for kwargs in archive]
 
     def convert(self):
-        self._convert('MHA2nnUNet', self.settings.num_threads, self.cases, (self.scans_out_dir, self.annotations_out_dir))
+        self._convert(
+            title='MHA2nnUNet',
+            cases=self.cases,
+            parameters={
+                'scans_out_dir': self.scans_out_dir,
+                'annotations_out_dir': self.annotations_out_dir
+            },
+            num_threads=self.settings.num_threads,
+        )
 
     def prepare_dataset_paths(self):
         """Prepare paths to scans and annotation in nnU-Net dataset.json format"""

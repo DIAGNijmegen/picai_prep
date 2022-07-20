@@ -274,14 +274,13 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
                               *[f'\t{key}: {value}' for key, value in summary.items()],
                               '', *serie_log, ''])
 
-    def _convert(self, *args):
-        output_dir, = args
+    def convert_item(self, output_dir: Path) -> None:
         self.initialize()
         self.extract_metadata()
         self.apply_mappings()
         self.resolve_duplicates()
         self.process_and_write(output_dir)
-    
+
     @property
     def is_valid(self):
         return all([serie.is_valid for serie in self.series])
@@ -486,7 +485,14 @@ class Dicom2MHAConverter(Converter):
         ]
 
     def convert(self):
-        self._convert('Dicom2MHA', self.settings.num_threads, self.cases, (self.output_dir, ))
+        self._convert(
+            title='Dicom2MHA',
+            cases=self.cases,
+            parameters={
+                'output_dir': self.output_dir
+            },
+            num_threads=self.settings.num_threads,
+        )
 
 
 def read_image_series(image_series_path: PathLike) -> sitk.Image:

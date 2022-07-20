@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from tqdm import tqdm
 
@@ -65,20 +65,20 @@ class Case(ABC):
     def compile_log(self):
         raise NotImplementedError()
 
-    def convert(self, *args):
+    def convert(self, **kargs):
         """"
         Execute conversion process, while handling errors.
         Please override the convert_item method to implement the conversion process.
         """
         try:
-            self.convert_item(*args)
+            self.convert_item(**kargs)
         except Exception as e:
             self.invalidate(e)
         finally:
             return self.compile_log()
 
     @abstractmethod
-    def convert_item(self, *args):
+    def convert_item(self, **kargs):
         """"
         Execute conversion process, please implement this.
         """
@@ -97,12 +97,12 @@ class Converter:
             logging.disable(logging.INFO)
 
     @staticmethod
-    def _convert(title: str, num_threads: int, cases: List[Case], parameters: tuple):
+    def _convert(title: str, cases: List[Case], parameters: Dict[str, Any], num_threads: int = 4):
         start_time = datetime.now()
         logging.info(f'{title} conversion started at {start_time.isoformat()}\n')
 
         with ThreadPoolExecutor(max_workers=num_threads) as pool:
-            futures = {pool.submit(case.convert, *parameters): case for case in cases}
+            futures = {pool.submit(case.convert, **parameters): case for case in cases}
             for future in tqdm(as_completed(futures), total=len(cases)):
                 case_log = future.result()
                 if case_log:
