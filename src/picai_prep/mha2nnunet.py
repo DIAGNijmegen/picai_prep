@@ -57,7 +57,7 @@ class _MHA2nnUNetCaseBase:
 @dataclass
 class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
     annotation_path: Optional[Path] = None
-    scans: List[Path] = field(default_factory=list)
+    scan_paths: List[Path] = field(default_factory=list)
 
     def __post_init__(self):
         if self.annotations_dir and self.annotation_path:
@@ -89,8 +89,8 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
                 missing_paths.append(path)
                 continue
 
-            self.scans.append(path)
-            self.write_log(f'\t+ ({len(self.scans)}) {path}')
+            self.scan_paths.append(path)
+            self.write_log(f'\t+ ({len(self.scan_paths)}) {path}')
 
         if len(missing_paths) > 0:
             raise FileNotFoundError(','.join([str(p) for p in missing_paths]))
@@ -103,15 +103,15 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
             self.write_log(f'\t+ {self.annotation_path}')
 
     def process_and_write(self, scans_out_dir: Path, annotations_out_dir: Path):
-        self.write_log(f'Writing {plural(len(self.scans), "scan")}' + ' including annotation' if self.annotation_path else '')
+        self.write_log(f'Writing {plural(len(self.scan_paths), "scan")}' + ' including annotation' if self.annotation_path else '')
 
-        sitk_scans = [sitk.ReadImage(scan.as_posix()) for scan in self.scans]
-        sitk_annotation = sitk.ReadImage(self.annotation_path.as_posix()) if self.annotation_path else None
+        scans = [sitk.ReadImage(path.as_posix()) for path in self.scan_paths]
+        lbl = sitk.ReadImage(self.annotation_path.as_posix()) if self.annotation_path else None
 
         # set up Sample
         sample = Sample(
-            scans=sitk_scans,
-            lbl=sitk_annotation,
+            scans=scans,
+            lbl=lbl,
             settings=self.settings.preprocessing,
             lbl_preprocess_func=self.settings.annotation_preprocess_func,
             lbl_postprocess_func=self.settings.annotation_postprocess_func,
@@ -129,7 +129,7 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
             atomic_image_write(scan, path=destination, mkdir=True)
             self.write_log(f'Wrote image to {destination}')
 
-        if sitk_annotation:
+        if lbl:
             destination = annotations_out_dir / f"{self.subject_id}.nii.gz"
             atomic_image_write(sample.lbl, path=annotations_out_dir / f"{self.subject_id}.nii.gz", mkdir=True)
             self.write_log(f'Wrote annotation to {destination}')
