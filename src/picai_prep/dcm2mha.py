@@ -25,7 +25,8 @@ import pydicom.errors
 import SimpleITK as sitk
 
 from picai_prep.converter import (ArchiveItemPathNotFoundError, Case,
-                                  Converter, ConverterException)
+                                  Converter, ConverterException,
+                                  CriticalErrorInSiblingError)
 from picai_prep.data_utils import PathLike, atomic_image_write
 from picai_prep.utilities import (dcm2mha_schema, dicom_tags,
                                   get_pydicom_value, lower_strip,
@@ -302,7 +303,7 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
                 self.series.append(serie)
 
         if not all([serie.is_valid for serie in self.series]):
-            self.invalidate(ConverterException('critical error in sibling'))
+            self.invalidate(CriticalErrorInSiblingError)
 
     def extract_metadata(self):
         self.write_log(f'Extracting metadata from {plural(len(self.valid_series), "serie")}')

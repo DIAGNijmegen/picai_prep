@@ -28,6 +28,13 @@ class ArchiveItemPathNotFoundError(ConverterException):
         super().__init__(f"Provided archive item path not found ({path})")
 
 
+class CriticalErrorInSiblingError(ConverterException):
+    """Exception raised when a critical error in a sibling item occurs"""
+
+    def __init__(self):
+        super().__init__("Critical error in sibling item")
+
+
 @dataclass
 class Case(ABC):
     patient_id: str
