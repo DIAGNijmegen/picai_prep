@@ -56,19 +56,26 @@ class Case(ABC):
 
     @abstractmethod
     def compile_log(self):
-        pass
+        raise NotImplementedError()
 
     def convert(self, *args):
+        """"
+        Execute conversion process, while handling errors.
+        Please override the convert_item method to implement the conversion process.
+        """
         try:
-            self._convert(*args)
+            self.convert_item(*args)
         except Exception as e:
             self.invalidate(e)
         finally:
             return self.compile_log()
 
     @abstractmethod
-    def _convert(self, *args):
-        pass
+    def convert_item(self, *args):
+        """"
+        Execute conversion process, please implement this.
+        """
+        raise NotImplementedError()
 
 
 class Converter:
@@ -83,7 +90,7 @@ class Converter:
             logging.disable(logging.INFO)
 
     @staticmethod
-    def _convert(title: str, num_threads: int, cases: list, parameters: tuple):
+    def _convert(title: str, num_threads: int, cases: List[Case], parameters: tuple):
         start_time = datetime.now()
         logging.info(f'{title} conversion started at {start_time.isoformat()}\n')
 

@@ -289,7 +289,8 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
             full_path = self.input_dir / path
             serie = Series(full_path, self.patient_id, self.study_id)
             try:
-                # if we find duplicate paths with the same patient and study id...
+                # if we find duplicate paths with the same patient and study id,
+                # invalidate this series and continue for logging purposes
                 if path in full_paths:
                     raise FileExistsError(path)
                 full_paths.add(full_path)
