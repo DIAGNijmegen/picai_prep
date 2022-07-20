@@ -243,6 +243,7 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
         return [item for item in self.series if item.is_valid]
 
     def compile_log(self):
+        """For questions: Stan.Noordman@Radboudumc.nl"""
         if self.settings.verbose == 0:
             return
 
@@ -250,13 +251,18 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
         summary = {}
         serie_log = []
 
+        # summarize each serie's log (if any)
         for i, serie in enumerate(self.series):
             serie_log.append(f'({i}) {serie.compile_log()}')
             if serie.error:
-                summary[type(serie.error).__name__] = summary.get(type(serie.error).__name__, []) + [i]
+                summary[serie.error.__class__.__name__] = summary.get(serie.error.__class__.__name__, []) + [i]
 
+        # these are the errors that are not fatal
         ignored_errors = {e.__name__ for e in [NoMappingsApplyError]}
+
+        # check if we should log any errors
         if len(set(summary.keys()).difference(ignored_errors)) > 0 or self.settings.verbose >= 2:
+            # don't worry, this just looks nice in the log
             return '\n'.join([divider,
                               f'CASE {self.patient_id}_{self.study_id}',
                               f'\tPATIENT ID\t{self.patient_id}',
