@@ -281,6 +281,10 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
         self.apply_mappings()
         self.resolve_duplicates()
         self.process_and_write(output_dir)
+    
+    @property
+    def is_valid(self):
+        return all([serie.is_valid for serie in self.series])
 
     def initialize(self):
         self.write_log(f'Importing {plural(len(self.paths), "serie")}')
@@ -302,7 +306,7 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
                 self.write_log(f'\t+ ({len(self.series)}) {full_path}')
                 self.series.append(serie)
 
-        if not all([serie.is_valid for serie in self.series]):
+        if not self.is_valid:
             self.invalidate(CriticalErrorInSiblingError)
 
     def extract_metadata(self):
