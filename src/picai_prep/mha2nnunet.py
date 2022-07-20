@@ -57,7 +57,7 @@ class _MHA2nnUNetCaseBase:
 @dataclass
 class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
     annotation_path: Optional[Path] = None
-    scan_paths: List[Path] = field(default_factory=list)
+    verified_scan_paths: List[Path] = field(default_factory=list)
 
     def __post_init__(self):
         if self.annotations_dir and self.annotation_path:
@@ -89,8 +89,8 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
                 missing_paths.append(path)
                 continue
 
-            self.scan_paths.append(path)
-            self.write_log(f'\t+ ({len(self.scan_paths)}) {path}')
+            self.verified_scan_paths.append(path)
+            self.write_log(f'\t+ ({len(self.verified_scan_paths)}) {path}')
 
         if len(missing_paths) > 0:
             raise FileNotFoundError(','.join([str(p) for p in missing_paths]))
@@ -103,9 +103,9 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
             self.write_log(f'\t+ {self.annotation_path}')
 
     def process_and_write(self, scans_out_dir: Path, annotations_out_dir: Path):
-        self.write_log(f'Writing {plural(len(self.scan_paths), "scan")}' + ' including annotation' if self.annotation_path else '')
+        self.write_log(f'Writing {plural(len(self.verified_scan_paths), "scan")}' + ' including annotation' if self.annotation_path else '')
 
-        scans = [sitk.ReadImage(path.as_posix()) for path in self.scan_paths]
+        scans = [sitk.ReadImage(path.as_posix()) for path in self.verified_scan_paths]
         lbl = sitk.ReadImage(self.annotation_path.as_posix()) if self.annotation_path else None
 
         # set up Sample
