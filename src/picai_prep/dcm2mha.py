@@ -491,7 +491,6 @@ def read_image_series(image_series_path: PathLike) -> sitk.Image:
         file_reader.SetFileName(dicom_slice_paths[-1])
         dicom_slice: sitk.Image = file_reader.Execute()
         for key in dicom_slice.GetMetaDataKeys():
-            assert dicom_slice.HasMetaDataKey(key), f'{key} not found in {dicom_slice_paths[-1]}'
             if len(dicom_slice.GetMetaData(key)) > 0:
                 image.SetMetaData(key, dicom_slice.GetMetaData(key))
     except RuntimeError:
