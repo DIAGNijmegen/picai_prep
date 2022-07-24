@@ -116,7 +116,11 @@ class Series:
             file_reader.SetFileName(str(dicom_slice_path))
             file_reader.ReadImageInformation()
             self.resolution = np.prod(file_reader.GetSpacing())
+            for key in file_reader.GetMetaDataKeys():
+                # collect all available metadata (with DICOM tags, e.g. 0010|1010, as keys)
+                self.metadata[key] = file_reader.GetMetaData(key)
             for name, key in dicom_tags.items():
+                # collect metadata with DICOM names, e.g. patientsage, as keys)
                 self.metadata[name] = file_reader.GetMetaData(key) if file_reader.HasMetaDataKey(key) else ''
         except Exception as e:
             self.write_log(f"Reading with SimpleITK failed for {self.path} with error: {e}. Attempting with pydicom.")
@@ -486,9 +490,8 @@ def read_image_series(image_series_path: PathLike) -> sitk.Image:
 
         file_reader.SetFileName(dicom_slice_paths[-1])
         dicom_slice: sitk.Image = file_reader.Execute()
-        for key in dicom_tags.values():
-            if dicom_slice.HasMetaDataKey(key) and len(dicom_slice.GetMetaData(key)) > 0:
-                image.SetMetaData(key, dicom_slice.GetMetaData(key))
+        for key in dicom_slice.GetMetaDataKeys():
+            image.SetMetaData(key, dicom_slice.GetMetaData(key))
     except RuntimeError:
         files = [pydicom.dcmread(dcm) for dcm in dicom_slice_paths]
 
