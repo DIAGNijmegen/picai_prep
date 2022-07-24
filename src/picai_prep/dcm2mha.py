@@ -24,10 +24,12 @@ import numpy as np
 import pydicom.errors
 import SimpleITK as sitk
 
-from picai_prep.converter import (ArchiveItemPathNotFoundError, Case,
-                                  Converter, ConverterException,
-                                  CriticalErrorInSiblingError)
+from picai_prep.converter import Case, Converter
 from picai_prep.data_utils import PathLike, atomic_image_write
+from picai_prep.errors import (ArchiveItemPathNotFoundError,
+                               CriticalErrorInSiblingError,
+                               MissingDICOMFilesError, NoMappingsApplyError,
+                               UnreadableDICOMError)
 from picai_prep.utilities import (dcm2mha_schema, dicom_tags,
                                   get_pydicom_value, lower_strip,
                                   make_sitk_readers, plural)
@@ -35,27 +37,6 @@ from picai_prep.utilities import (dcm2mha_schema, dicom_tags,
 Metadata = Dict[str, str]
 Mapping = Dict[str, List[str]]
 Mappings = Dict[str, Mapping]
-
-
-class MissingDICOMFilesError(ConverterException):
-    """Exception raised when a DICOM series has missing DICOM slices"""
-
-    def __init__(self, path: PathLike):
-        super().__init__(f"Missing DICOM slices detected in {path}")
-
-
-class NoMappingsApplyError(ConverterException):
-    """Exception raised when no mappings apply to the case"""
-
-    def __init__(self):
-        super().__init__('None of the provided mappings apply to this item')
-
-
-class UnreadableDICOMError(ConverterException):
-    """Exception raised when a DICOM series could not be loaded"""
-
-    def __init__(self, path: PathLike):
-        super().__init__(f'Could not read {path} using either SimpleITK or pydicom')
 
 
 @dataclass
@@ -95,25 +76,11 @@ class Series:
 
     _log: List[str] = field(default_factory=list)
 
-    def __repr__(self):
-        return self.path.name
-
     def __post_init__(self):
         if not self.path.exists():
             raise ArchiveItemPathNotFoundError(self.path)
         if not self.path.is_dir():
             raise NotADirectoryError(self.path)
-
-    @property
-    def is_valid(self):
-        return self.error is None
-
-    def write_log(self, msg: str):
-        self._log.append(msg)
-
-    def compile_log(self):
-        log = [f'\t{item}' for item in self._log]
-        return '\n'.join([self.path.as_posix()] + log + [f'\tFATAL: {self.error}\n' if not self.is_valid else ''])
 
     def verify_dicom_filenames(self, filenames: List[PathLike]) -> bool:
         vdcms = [d.rsplit('.', 1)[0] for d in filenames]
@@ -227,6 +194,20 @@ class Series:
             raise NoMappingsApplyError()
         self.write_log(f'Applied mappings [{", ".join(self.mappings)}]')
 
+    @property
+    def is_valid(self):
+        return self.error is None
+
+    def write_log(self, msg: str):
+        self._log.append(msg)
+
+    def compile_log(self):
+        log = [f'\t{item}' for item in self._log]
+        return '\n'.join([self.path.as_posix()] + log + [f'\tFATAL: {self.error}\n' if not self.is_valid else ''])
+
+    def __repr__(self):
+        return self.path.name
+
 
 @dataclass
 class _Dicom2MHACaseBase:
@@ -239,51 +220,12 @@ class _Dicom2MHACaseBase:
 class Dicom2MHACase(Case, _Dicom2MHACaseBase):
     series: List[Series] = field(default_factory=list)
 
-    @property
-    def valid_series(self):
-        return [item for item in self.series if item.is_valid]
-
-    def compile_log(self):
-        """For questions: Stan.Noordman@Radboudumc.nl"""
-        if self.settings.verbose == 0:
-            return
-
-        divider = '=' * 120
-        summary = {}
-        serie_log = []
-
-        # summarize each serie's log (if any)
-        for i, serie in enumerate(self.series):
-            serie_log.append(f'({i}) {serie.compile_log()}')
-            if serie.error:
-                summary[serie.error.__class__.__name__] = summary.get(serie.error.__class__.__name__, []) + [i]
-
-        # these are the errors that are not fatal
-        ignored_errors = {e.__name__ for e in [NoMappingsApplyError]}
-
-        # check if we should log any errors
-        if len(set(summary.keys()).difference(ignored_errors)) > 0 or self.settings.verbose >= 2:
-            # don't worry, this just looks nice in the log
-            return '\n'.join([divider,
-                              f'CASE {self.patient_id}_{self.study_id}',
-                              f'\tPATIENT ID\t{self.patient_id}',
-                              f'\tSTUDY ID\t{self.study_id}\n',
-                              *self._log,
-                              '\nSERIES', divider.replace('=', '-'),
-                              'Errors found:',
-                              *[f'\t{key}: {value}' for key, value in summary.items()],
-                              '', *serie_log, ''])
-
     def convert_item(self, output_dir: Path) -> None:
         self.initialize()
         self.extract_metadata()
         self.apply_mappings()
         self.resolve_duplicates()
         self.process_and_write(output_dir)
-
-    @property
-    def is_valid(self):
-        return all([serie.is_valid for serie in self.series])
 
     def initialize(self):
         self.write_log(f'Importing {plural(len(self.paths), "serie")}')
@@ -413,6 +355,45 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
         self.write_log(f'Wrote {total - len(errors) - len(skips)} MHA files to {dir.as_posix()}\n'
                        f'\t({plural(len(errors), "error")}{f" {errors}" if len(errors) > 0 else ""}, '
                        f'{len(skips)} skipped{f" {skips}" if len(skips) > 0 else ""})')
+
+    @property
+    def is_valid(self):
+        return all([serie.is_valid for serie in self.series])
+
+    @property
+    def valid_series(self):
+        return [item for item in self.series if item.is_valid]
+
+    def compile_log(self):
+        """For questions: Stan.Noordman@Radboudumc.nl"""
+        if self.settings.verbose == 0:
+            return
+
+        divider = '=' * 120
+        summary = {}
+        serie_log = []
+
+        # summarize each serie's log (if any)
+        for i, serie in enumerate(self.series):
+            serie_log.append(f'({i}) {serie.compile_log()}')
+            if serie.error:
+                summary[serie.error.__class__.__name__] = summary.get(serie.error.__class__.__name__, []) + [i]
+
+        # these are the errors that are not fatal
+        ignored_errors = {e.__name__ for e in [NoMappingsApplyError]}
+
+        # check if we should log any errors
+        if len(set(summary.keys()).difference(ignored_errors)) > 0 or self.settings.verbose >= 2:
+            # don't worry, this just looks nice in the log
+            return '\n'.join([divider,
+                              f'CASE {self.patient_id}_{self.study_id}',
+                              f'\tPATIENT ID\t{self.patient_id}',
+                              f'\tSTUDY ID\t{self.study_id}\n',
+                              *self._log,
+                              '\nSERIES', divider.replace('=', '-'),
+                              'Errors found:',
+                              *[f'\t{key}: {value}' for key, value in summary.items()],
+                              '', *serie_log, ''])
 
 
 class Dicom2MHAConverter(Converter):

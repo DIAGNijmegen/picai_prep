@@ -63,17 +63,6 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
         if self.annotations_dir and self.annotation_path:
             self.annotation_path = self.annotations_dir / self.annotation_path
 
-    def compile_log(self):
-        if self.settings.verbose == 0:
-            return None
-
-        if self.is_valid or self.settings.verbose >= 2:
-            return '\n'.join(['=' * 120,
-                              f'CASE {self.subject_id}',
-                              f'\tPATIENT ID\t{self.patient_id}',
-                              f'\tSTUDY ID\t{self.study_id}\n',
-                              *self._log])
-
     def convert_item(self, scans_out_dir: Path, annotations_out_dir: Path) -> None:
         self.initialize()
         self.process_and_write(scans_out_dir, annotations_out_dir)
@@ -133,6 +122,17 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
             destination_path = annotations_out_dir / f"{self.subject_id}.nii.gz"
             atomic_image_write(sample.lbl, path=annotations_out_dir / f"{self.subject_id}.nii.gz", mkdir=True)
             self.write_log(f'Wrote annotation to {destination_path}')
+
+    def compile_log(self):
+        if self.settings.verbose == 0:
+            return None
+
+        if self.is_valid or self.settings.verbose >= 2:
+            return '\n'.join(['=' * 120,
+                              f'CASE {self.subject_id}',
+                              f'\tPATIENT ID\t{self.patient_id}',
+                              f'\tSTUDY ID\t{self.study_id}\n',
+                              *self._log])
 
 
 class MHA2nnUNetConverter(Converter):
