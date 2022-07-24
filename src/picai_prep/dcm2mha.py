@@ -117,9 +117,6 @@ class Series:
             file_reader.ReadImageInformation()
             self.resolution = np.prod(file_reader.GetSpacing())
             for key in file_reader.GetMetaDataKeys():
-                if len(file_reader.GetMetaData(key)) == 0:
-                    continue
-
                 # collect all available metadata (with DICOM tags, e.g. 0010|1010, as keys)
                 self.metadata[key] = file_reader.GetMetaData(key)
             for name, key in dicom_tags.items():
@@ -494,7 +491,9 @@ def read_image_series(image_series_path: PathLike) -> sitk.Image:
         file_reader.SetFileName(dicom_slice_paths[-1])
         dicom_slice: sitk.Image = file_reader.Execute()
         for key in dicom_slice.GetMetaDataKeys():
-            image.SetMetaData(key, dicom_slice.GetMetaData(key))
+            assert dicom_slice.HasMetaDataKey(key), f'{key} not found in {dicom_slice_paths[-1]}'
+            if len(dicom_slice.GetMetaData(key)) > 0:
+                image.SetMetaData(key, dicom_slice.GetMetaData(key))
     except RuntimeError:
         files = [pydicom.dcmread(dcm) for dcm in dicom_slice_paths]
 
