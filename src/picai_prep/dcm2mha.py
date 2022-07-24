@@ -117,8 +117,11 @@ class Series:
             file_reader.ReadImageInformation()
             self.resolution = np.prod(file_reader.GetSpacing())
             for key in file_reader.GetMetaDataKeys():
+                if len(file_reader.GetMetaData(key)) == 0:
+                    continue
+
                 # collect all available metadata (with DICOM tags, e.g. 0010|1010, as keys)
-                self.metadata[key] = str(file_reader.GetMetaData(key))
+                self.metadata[key] = file_reader.GetMetaData(key)
             for name, key in dicom_tags.items():
                 # collect metadata with DICOM names, e.g. patientsage, as keys)
                 self.metadata[name] = file_reader.GetMetaData(key) if file_reader.HasMetaDataKey(key) else ''
