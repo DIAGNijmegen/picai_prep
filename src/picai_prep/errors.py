@@ -44,3 +44,10 @@ class UnreadableDICOMError(ConverterException):
 
     def __init__(self, path: PathLike):
         super().__init__(f'Could not read {path} using either SimpleITK or pydicom')
+
+
+class DCESeriesNotFoundError(ConverterException):
+    """Exception raised when DCE series could not be found"""
+
+    def __init__(self, subject_id: str):
+        super().__init__(f"DCE series not found for {subject_id}")
