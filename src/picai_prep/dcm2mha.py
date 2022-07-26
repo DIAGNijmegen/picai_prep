@@ -46,6 +46,7 @@ class Dicom2MHASettings:
     allow_duplicates: bool = False
     metadata_match_func: Optional[Callable[[Metadata, Mappings], bool]] = None
     values_match_func: Union[str, Callable[[str, str], bool]] = "lower_strip_equals"
+    scan_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
     num_threads: int = 4
     verbose: int = 1
 
@@ -342,9 +343,8 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
                     logging.error(str(e))
                     errors.append(i)
                 else:
-                    # temporarily commented out
-                    # if self.scan_postprocess_func is not None:
-                    #     image = self.scan_postprocess_func(image)
+                    if self.settings.scan_postprocess_func is not None:
+                        image = self.settings.scan_postprocess_func(image)
                     try:
                         atomic_image_write(image=image, path=dst_path, mkdir=True)
                     except Exception as e:
