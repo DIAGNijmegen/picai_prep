@@ -242,18 +242,13 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
         for path in self.paths:
             full_path = self.input_dir / path
             serie = Series(full_path, self.patient_id, self.study_id)
-            try:
-                # if we find duplicate paths with the same patient and study id,
-                # invalidate this series and continue for logging purposes
-                if path in full_paths:
-                    raise FileExistsError(path)
-                full_paths.add(full_path)
-            except Exception as e:
-                serie.error = e
-                logging.error(str(e))
-            finally:
-                self.write_log(f'\t+ ({len(self.series)}) {full_path}')
-                self.series.append(serie)
+            # if we find duplicate paths with the same patient and study id,
+            # invalidate this series and continue for logging purposes
+            if path in full_paths:
+                raise FileExistsError(path)
+            full_paths.add(full_path)
+            self.write_log(f'\t+ ({len(self.series)}) {full_path}')
+            self.series.append(serie)
 
         if not self.is_valid:
             self.invalidate()
@@ -363,9 +358,11 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
                        f'\t({plural(len(errors), "error")}{f" {errors}" if len(errors) > 0 else ""}, '
                        f'{len(skips)} skipped{f" {skips}" if len(skips) > 0 else ""})')
 
-    def invalidate(self):
+    def invalidate(self, error: Exception = None):
+        if error is None:
+            error = CriticalErrorInSiblingError()
         for serie in self.valid_series:
-            serie.error = CriticalErrorInSiblingError()
+            serie.error = error
 
     @property
     def subject_id(self) -> str:

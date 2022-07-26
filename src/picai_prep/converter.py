@@ -84,7 +84,7 @@ class Converter:
                         logging.info(case_log)
         else:
             for case in cases:
-                case_log = case.convert(*parameters)
+                case_log = case.convert(**parameters)
                 if case_log:
                     logging.info(case_log)
 
