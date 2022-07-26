@@ -76,9 +76,6 @@ class Series:
 
     _log: List[str] = field(default_factory=list)
 
-    def __repr__(self):
-        return f"Series({self.path.name})"
-
     def __post_init__(self):
         if not self.path.exists():
             raise ArchiveItemPathNotFoundError(self.path)
@@ -199,10 +196,6 @@ class Series:
             raise NoMappingsApplyError()
         self.write_log(f'Applied mappings [{", ".join(self.mappings)}]')
 
-    @property
-    def is_valid(self):
-        return self.error is None
-
     def write_log(self, msg: str):
         self._log.append(msg)
 
@@ -210,8 +203,12 @@ class Series:
         log = [f'\t{item}' for item in self._log]
         return '\n'.join([self.path.as_posix()] + log + [f'\tFATAL: {self.error}\n' if not self.is_valid else ''])
 
+    @property
+    def is_valid(self):
+        return self.error is None
+
     def __repr__(self):
-        return self.path.name
+        return f"Series({self.path.name})"
 
 
 @dataclass
@@ -224,38 +221,6 @@ class _Dicom2MHACaseBase:
 @dataclass
 class Dicom2MHACase(Case, _Dicom2MHACaseBase):
     series: List[Series] = field(default_factory=list)
-
-    def __repr__(self):
-        return f'Case({self.subject_id})'
-
-    @property
-    def valid_series(self):
-        return [item for item in self.series if item.is_valid]
-
-    @property
-    def subject_id(self) -> str:
-        return f"{self.patient_id}_{self.study_id}"
-
-    def invalidate(self):
-        for serie in self.valid_series:
-            serie.error = SeriesException('Invalidated due to critical error in sibling')
-
-    def write_log(self, msg: str):
-        self._log.append(msg)
-
-    def compile_log(self):
-        divider = '=' * 120
-        log = [divider,
-               f'CASE {self.subject_id}',
-               f'\tPATIENT ID\t{self.patient_id}',
-               f'\tSTUDY ID\t{self.study_id}\n']
-        log += self._log
-        log += ['\nSERIES', divider.replace('=', '-')]
-        for i, serie in enumerate(self.series):
-            log.append(f'({i}) {serie.path.as_posix()}')
-            log.extend([f'\t{item}' for item in serie._log])
-            log.append(f'\tFATAL: {serie.error}\n' if not serie.is_valid else '')
-        return '\n'.join(log)
 
     def convert_item(self, output_dir: Path) -> None:
         self.initialize()
@@ -393,6 +358,14 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
                        f'\t({plural(len(errors), "error")}{f" {errors}" if len(errors) > 0 else ""}, '
                        f'{len(skips)} skipped{f" {skips}" if len(skips) > 0 else ""})')
 
+    def invalidate(self):
+        for serie in self.valid_series:
+            serie.error = CriticalErrorInSiblingError()
+
+    @property
+    def subject_id(self) -> str:
+        return f"{self.patient_id}_{self.study_id}"
+
     @property
     def is_valid(self):
         return all([serie.is_valid for serie in self.series])
@@ -400,6 +373,9 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
     @property
     def valid_series(self):
         return [item for item in self.series if item.is_valid]
+
+    def write_log(self, msg: str):
+        self._log.append(msg)
 
     def compile_log(self):
         """For questions: Stan.Noordman@Radboudumc.nl"""
@@ -431,6 +407,9 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
                               'Errors found:',
                               *[f'\t{key}: {value}' for key, value in summary.items()],
                               '', *serie_log, ''])
+
+    def __repr__(self):
+        return f'Case({self.subject_id})'
 
 
 class Dicom2MHAConverter(Converter):
