@@ -65,7 +65,7 @@ class Dicom2DCECase(Dicom2MHACase):
         if not return_image:
             dst_path = patient_dir / f"{self.subject_id}_dce.mha"
             if dst_path.exists():
-                # TODO: log case is skipped
+                self.write_log(f"{dst_path} already exists, skipping.")
                 return
 
         # placeholders
@@ -82,7 +82,7 @@ class Dicom2DCECase(Dicom2MHACase):
                     timepoint = match.group('time')
                     dce_scan_time_map[timepoint] = serie.path
                     if self.settings.verbose >= 2:
-                        print(f"Got {timepoint} from {serie.metadata['seriesdescription']}")
+                        self.write_log(f"Got {timepoint} from {serie.metadata['seriesdescription']}")
                     break
 
             if timepoint is None:
@@ -92,7 +92,7 @@ class Dicom2DCECase(Dicom2MHACase):
                         timepoint = serie.metadata['acquisitiontime']
                         dce_scan_time_map[timepoint] = serie.path
                         if self.settings.verbose >= 2:
-                            print(f"Got {timepoint} from {serie.metadata['seriesdescription']} ({serie.path})")
+                            self.write_log(f"Got {timepoint} from {serie.metadata['seriesdescription']} ({serie.path})")
                         break
 
         # Sort scan-time dictionary
@@ -100,7 +100,7 @@ class Dicom2DCECase(Dicom2MHACase):
         times = sorted(times, key=float)
 
         if self.settings.verbose >= 2:
-            print(f'Sorted times: {times}')
+            self.write_log(f'Sorted times: {times}')
 
         if len(times) <= 1:
             raise DCESeriesNotFoundError(self.subject_id)
@@ -109,7 +109,7 @@ class Dicom2DCECase(Dicom2MHACase):
         for i, timepoint in enumerate(times):
             ser_dir = dce_scan_time_map[timepoint]
             if self.settings.verbose >= 2:
-                print(f"[{i+1}/{len(times)}]: Reading scan at {timepoint}s from {ser_dir}")
+                self.write_log(f"[{i+1}/{len(times)}]: Reading scan at {timepoint}s from {ser_dir}")
 
             # Collect T1 image of ordered time points
             image = read_image_series(ser_dir)
