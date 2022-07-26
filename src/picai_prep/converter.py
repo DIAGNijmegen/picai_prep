@@ -8,32 +8,6 @@ from typing import Any, Dict, List, Optional
 
 from tqdm import tqdm
 
-from picai_prep.data_utils import PathLike
-
-
-class ConverterException(Exception):
-    """Base Exception for errors in an item (series within a case)"""
-
-    def __init__(self, message: str):
-        super().__init__(message)
-
-    def __str__(self):
-        return f'{type(self).__name__}: {", ".join([a for a in self.args])}'
-
-
-class ArchiveItemPathNotFoundError(ConverterException):
-    """Exception raised when a archive path could not be found"""
-
-    def __init__(self, path: PathLike):
-        super().__init__(f"Provided archive item path not found ({path})")
-
-
-class CriticalErrorInSiblingError(ConverterException):
-    """Exception raised when a critical error in a sibling item occurs"""
-
-    def __init__(self):
-        super().__init__("Critical error in sibling item")
-
 
 @dataclass
 class Case(ABC):
@@ -44,25 +18,11 @@ class Case(ABC):
 
     _log: List[str] = field(default_factory=list)
 
-    def __repr__(self):
-        return f'Case({self.patient_id}_{self.study_id})'
-
-    @property
-    def subject_id(self):
-        return f'{self.patient_id}_{self.study_id}'
-
-    def invalidate(self, error: Exception):
-        self.error = error
-
-    @property
-    def is_valid(self):
-        return self.error is None
-
-    def write_log(self, msg: str):
-        self._log.append(msg)
-
     @abstractmethod
-    def compile_log(self):
+    def convert_item(self, **kargs):
+        """"
+        Execute conversion process, please implement this.
+        """
         raise NotImplementedError()
 
     def convert(self, **kargs):
@@ -77,12 +37,26 @@ class Case(ABC):
         finally:
             return self.compile_log()
 
+    @property
+    def subject_id(self):
+        return f'{self.patient_id}_{self.study_id}'
+
+    @property
+    def is_valid(self):
+        return self.error is None
+
+    def invalidate(self, error: Exception):
+        self.error = error
+
+    def write_log(self, msg: str):
+        self._log.append(msg)
+
     @abstractmethod
-    def convert_item(self, **kargs):
-        """"
-        Execute conversion process, please implement this.
-        """
+    def compile_log(self):
         raise NotImplementedError()
+
+    def __repr__(self):
+        return f'Case({self.patient_id}_{self.study_id})'
 
 
 class Converter:
