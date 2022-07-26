@@ -12,25 +12,20 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List
 
 import SimpleITK as sitk
 
 from picai_prep.data_utils import PathLike, atomic_image_write
-from picai_prep.dcm2mha import (Dicom2MHACase, Dicom2MHAConverter, Series,
+from picai_prep.dcm2mha import (Dicom2MHACase, Dicom2MHAConverter,
                                 read_image_series)
 from picai_prep.errors import DCESeriesNotFoundError
-
-Metadata = Dict[str, str]
-Mapping = Dict[str, List[str]]
-Mappings = Dict[str, Mapping]
 
 
 @dataclass
 class Dicom2DCECase(Dicom2MHACase):
-    series: List[Series] = field(default_factory=list)
 
     def convert_item(self, output_dir):
         self.initialize()
