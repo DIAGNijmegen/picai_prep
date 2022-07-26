@@ -11,7 +11,6 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -33,23 +32,16 @@ Mappings = Dict[str, Mapping]
 class Dicom2DCECase(Dicom2MHACase):
     series: List[Series] = field(default_factory=list)
 
-    def convert(self, output_dir):
-        try:
-            self.initialize()
-            self.extract_metadata()
-            self._convert_dce(output_dir)
-        except Exception as e:
-            self.invalidate()
-            logging.error(str(e))
-        finally:
-            return self.compile_log()
+    def convert_item(self, output_dir):
+        self.initialize()
+        self.extract_metadata()
+        self._convert_dce(output_dir)
 
     def _convert_dce(
         self,
         output_dir: PathLike,
         DCE_prefixes: List[str] = None,
         return_image: bool = False,
-        verbose: int = 2,  # TODO: sync with general verbosity Stan's working on
     ):
         if DCE_prefixes is None:
             DCE_prefixes = [
@@ -89,7 +81,7 @@ class Dicom2DCECase(Dicom2MHACase):
                 if match is not None:
                     timepoint = match.group('time')
                     dce_scan_time_map[timepoint] = serie.path
-                    if verbose >= 2:
+                    if self.settings.verbose >= 2:
                         print(f"Got {timepoint} from {serie.metadata['seriesdescription']}")
                     break
 
@@ -99,7 +91,7 @@ class Dicom2DCECase(Dicom2MHACase):
                         # try to get scan time from Acquisition Time
                         timepoint = serie.metadata['acquisitiontime']
                         dce_scan_time_map[timepoint] = serie.path
-                        if verbose >= 2:
+                        if self.settings.verbose >= 2:
                             print(f"Got {timepoint} from {serie.metadata['seriesdescription']} ({serie.path})")
                         break
 
@@ -107,7 +99,7 @@ class Dicom2DCECase(Dicom2MHACase):
         times = dce_scan_time_map.keys()
         times = sorted(times, key=float)
 
-        if verbose >= 2:
+        if self.settings.verbose >= 2:
             print(f'Sorted times: {times}')
 
         if len(times) <= 1:
@@ -116,7 +108,7 @@ class Dicom2DCECase(Dicom2MHACase):
         # Collect all DCE scans in chronological order
         for i, timepoint in enumerate(times):
             ser_dir = dce_scan_time_map[timepoint]
-            if verbose >= 2:
+            if self.settings.verbose >= 2:
                 print(f"[{i+1}/{len(times)}]: Reading scan at {timepoint}s from {ser_dir}")
 
             # Collect T1 image of ordered time points
