@@ -50,17 +50,6 @@ def make_sitk_readers() -> Tuple[sitk.ImageFileReader, sitk.ImageSeriesReader]:
     return file_reader, series_reader
 
 
-metadata_defaults = {
-    "patient_id": {
-        "key": "0010|0020",
-        "error": "No PatientID metadata key found and no custom 'patient_id' provided"
-    },
-    "study_id": {
-        "key": "0020|000d",
-        "error": "No StudyInstanceUID metadata key found and no custom 'study_id' provided"
-    },
-}
-
 __all__ = [
     # Explicitly expose these functions for easier imports
     "dcm2mha_schema",
