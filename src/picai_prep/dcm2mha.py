@@ -423,6 +423,7 @@ class Dicom2MHAConverter(Converter):
         input_dir: PathLike,
         output_dir: PathLike,
         dcm2mha_settings: Union[PathLike, Dict] = None,
+        case_class: Case = Dicom2MHACase,
     ):
         """
         Parameters
@@ -459,6 +460,7 @@ class Dicom2MHAConverter(Converter):
         self.input_dir = Path(input_dir)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.case_class = case_class
 
         # parse settings
         if isinstance(dcm2mha_settings, (Path, str)):
@@ -475,14 +477,14 @@ class Dicom2MHAConverter(Converter):
 
         self.initialize_log(self.output_dir, self.settings.verbose)
 
-    def _init_cases(self, archive: List[Dict]) -> List[Dicom2MHACase]:
+    def _init_cases(self, archive: List[Dict]) -> List[Case]:
         cases = {}
         for item in archive:
             key = tuple(item[id] for id in ["patient_id", "study_id"])
             cases[key] = cases.get(key, []) + [item['path']]
         return [
-            Dicom2MHACase(input_dir=self.input_dir, patient_id=patient_id,
-                          study_id=study_id, paths=paths, settings=self.settings)
+            self.case_class(input_dir=self.input_dir, patient_id=patient_id,
+                            study_id=study_id, paths=paths, settings=self.settings)
             for (patient_id, study_id), paths in cases.items()
         ]
 

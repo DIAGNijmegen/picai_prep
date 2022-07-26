@@ -37,7 +37,7 @@ def test_dce_conversion(
     archive = Dicom2DCEConverter(
         input_dir=input_dir,
         output_dir=output_dir,
-        dcm2mha_settings="tests/output/dcm2mha_settings.json"
+        dcm2dce_settings="tests/output/dcm2mha_settings.json"
     )
     case = archive.cases[-1]
     case.initialize()

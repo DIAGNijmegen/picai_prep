@@ -14,10 +14,11 @@
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Union
 
 import SimpleITK as sitk
 
+from picai_prep.converter import Case
 from picai_prep.data_utils import PathLike, atomic_image_write
 from picai_prep.dcm2mha import (Dicom2MHACase, Dicom2MHAConverter,
                                 read_image_series)
@@ -129,16 +130,19 @@ class Dicom2DCECase(Dicom2MHACase):
 
 
 class Dicom2DCEConverter(Dicom2MHAConverter):
-    def _init_cases(self, archive: List[Dict]) -> List[Dicom2DCECase]:
-        cases = {}
-        for item in archive:
-            key = tuple(item[id] for id in ["patient_id", "study_id"])
-            cases[key] = cases.get(key, []) + [item['path']]
-        return [
-            Dicom2DCECase(input_dir=self.input_dir, patient_id=patient_id,
-                          study_id=study_id, paths=paths, settings=self.settings)
-            for (patient_id, study_id), paths in cases.items()
-        ]
+    def __init__(
+        self,
+        input_dir: PathLike,
+        output_dir: PathLike,
+        dcm2dce_settings: Union[PathLike, Dict] = None,
+        case_class: Case = Dicom2DCECase,
+    ):
+        super().__init__(
+            input_dir=input_dir,
+            output_dir=output_dir,
+            dcm2mha_settings=dcm2dce_settings,
+            case_class=case_class
+        )
 
     def convert(self):
         self._convert(
