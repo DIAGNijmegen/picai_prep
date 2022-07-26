@@ -75,10 +75,16 @@ class Converter:
         start_time = datetime.now()
         logging.info(f'{title} conversion started at {start_time.isoformat()}\n')
 
-        with ThreadPoolExecutor(max_workers=num_threads) as pool:
-            futures = {pool.submit(case.convert, **parameters): case for case in cases}
-            for future in tqdm(as_completed(futures), total=len(cases)):
-                case_log = future.result()
+        if num_threads >= 2:
+            with ThreadPoolExecutor(max_workers=num_threads) as pool:
+                futures = {pool.submit(case.convert, **parameters): case for case in cases}
+                for future in tqdm(as_completed(futures), total=len(cases)):
+                    case_log = future.result()
+                    if case_log:
+                        logging.info(case_log)
+        else:
+            for case in cases:
+                case_log = case.convert(*parameters)
                 if case_log:
                     logging.info(case_log)
 
