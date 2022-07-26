@@ -13,6 +13,8 @@
 #  limitations under the License.
 
 
+from picai_prep.data_utils import atomic_file_copy, atomic_image_write
+from picai_prep.dcm2dce import Dicom2DCEConverter
 from picai_prep.dcm2mha import Dicom2MHAConverter
 from picai_prep.mha2nnunet import MHA2nnUNetConverter
 from picai_prep.nnunet2nndet import nnunet2nndet
@@ -23,6 +25,9 @@ print("If you have questions or suggestions, feel free to open an issue " +
 __all__ = [
       # Explicitly expose these functions for easier imports
       "Dicom2MHAConverter",
+      "Dicom2DCEConverter",
       "MHA2nnUNetConverter",
       "nnunet2nndet",
+      "atomic_image_write",
+      "atomic_file_copy"
 ]

@@ -32,9 +32,9 @@ def atomic_image_write(
 ):
     """
     Safely write image to disk, by:
-    1. Writing the image to a temporary file: path/to/.tmp.[filename]
+    1. Writing the image to a temporary file: path/to/tmp_[filename]
     2. IF writing succeeded:
-    2a. (optional) rename existing file to path/to/backup.[filename]
+    2a. (optional) rename existing file to path/to/backup_[filename]
     2b. rename file to target name, which is an atomic operation
     This way, no partially written files can exist at the target path (except for temporary files)
     """
@@ -44,12 +44,12 @@ def atomic_image_write(
         os.makedirs(path.parent, exist_ok=True)
 
     # save image to temporary file
-    path_tmp = path.with_name(f".tmp.{path.name}")
+    path_tmp = path.with_name(f"tmp_{path.name}")
     sitk.WriteImage(image, path_tmp.as_posix(), useCompression=compress)
 
     # backup existing file?
     if backup_existing_file and path.exists():
-        dst_path_bak = path.with_name(f"backup.{path.name}")
+        dst_path_bak = path.with_name(f"backup_{path.name}")
         if dst_path_bak.exists():
             raise FileExistsError(f"Existing backup file found at {dst_path_bak}.")
         os.rename(path, dst_path_bak)
