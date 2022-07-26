@@ -83,7 +83,7 @@ class Converter:
                     if case_log:
                         logging.info(case_log)
         else:
-            for case in cases:
+            for case in tqdm(cases):
                 case_log = case.convert(**parameters)
                 if case_log:
                     logging.info(case_log)
