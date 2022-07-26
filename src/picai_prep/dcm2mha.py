@@ -17,7 +17,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Sequence, Union
 
 import jsonschema
 import numpy as np
@@ -68,7 +68,7 @@ class Series:
 
     # image metadata
     filenames: Optional[List[str]] = None
-    resolution: Optional[float] = None
+    spacing: Optional[Sequence[float]] = None
     metadata: Optional[Metadata] = field(default_factory=dict)
 
     mappings: List[str] = field(default_factory=list)
@@ -84,12 +84,14 @@ class Series:
             raise NotADirectoryError(self.path)
 
     def verify_dicom_filenames(self, filenames: List[PathLike]) -> bool:
+        """Verify DICOM filenames have increasing numbers, with no gaps"""
         vdcms = [d.rsplit('.', 1)[0] for d in filenames]
         vdcms = [int(''.join(c for c in d if c.isdigit())) for d in vdcms]
         missing_slices = False
         for num in range(min(vdcms), max(vdcms) + 1):
             if num not in vdcms:
                 missing_slices = True
+                break
         if missing_slices:
             raise MissingDICOMFilesError(self.path)
         return True
@@ -115,7 +117,8 @@ class Series:
         try:
             file_reader.SetFileName(str(dicom_slice_path))
             file_reader.ReadImageInformation()
-            self.resolution = np.prod(file_reader.GetSpacing())
+            self.spacing = file_reader.GetSpacing()
+
             for key in file_reader.GetMetaDataKeys():
                 # collect all available metadata (with DICOM tags, e.g. 0010|1010, as keys)
                 self.metadata[key] = file_reader.GetMetaData(key)
@@ -126,7 +129,7 @@ class Series:
             self.write_log(f"Reading with SimpleITK failed for {self.path} with error: {e}. Attempting with pydicom.")
             try:
                 with pydicom.dcmread(dicom_slice_path) as data:
-                    self.resolution = np.prod(data.PixelSpacing)
+                    self.spacing = data.PixelSpacing
                     for name, key in dicom_tags.items():
                         self.metadata[name] = get_pydicom_value(data, key)
             except pydicom.errors.InvalidDicomError:
@@ -199,10 +202,6 @@ class Series:
             raise NoMappingsApplyError()
         self.write_log(f'Applied mappings [{", ".join(self.mappings)}]')
 
-    @property
-    def is_valid(self):
-        return self.error is None
-
     def write_log(self, msg: str):
         self._log.append(msg)
 
@@ -210,8 +209,12 @@ class Series:
         log = [f'\t{item}' for item in self._log]
         return '\n'.join([self.path.as_posix()] + log + [f'\tFATAL: {self.error}\n' if not self.is_valid else ''])
 
+    @property
+    def is_valid(self):
+        return self.error is None
+
     def __repr__(self):
-        return self.path.name
+        return f"Series({self.path.name})"
 
 
 @dataclass
@@ -293,7 +296,7 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
         # define tiebreakers, which should have: name, value_func, pick_largest
         tiebreakers = [
             ('slice count', lambda a: len(a.filenames), True),
-            ('image resolution', lambda a: a.resolution, False),
+            ('image resolution', lambda a: np.prod(a.spacing), False),
             ('filename', lambda a: str(a.path), False),
         ]
 
@@ -329,12 +332,12 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
         self.write_log(f'Writing {plural(total, "serie")}')
         errors, skips = [], []
 
-        dir = output_dir / self.patient_id
+        patient_dir = output_dir / self.patient_id
         for i, serie in enumerate(self.valid_series):
             for mapping in serie.mappings:
-                destination = (dir / '_'.join([self.patient_id, self.study_id, mapping])).with_suffix('.mha')
-                if destination.exists():
-                    serie.write_log(f'Skipped "{mapping}", already exists: {destination}')
+                dst_path = patient_dir / f"{self.subject_id}_{mapping}.mha"
+                if dst_path.exists():
+                    serie.write_log(f'Skipped "{mapping}", already exists: {dst_path}')
                     skips.append(i)
 
                 try:
@@ -348,17 +351,25 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
                     if self.settings.scan_postprocess_func is not None:
                         image = self.settings.scan_postprocess_func(image)
                     try:
-                        atomic_image_write(image=image, path=destination, mkdir=True)
+                        atomic_image_write(image=image, path=dst_path, mkdir=True)
                     except Exception as e:
                         serie.write_log(f'Skipped "{mapping}", write error: {e}')
                         logging.error(str(e))
                         errors.append(i)
                     else:
-                        serie.write_log(f'Wrote image to {destination}')
+                        serie.write_log(f'Wrote image to {dst_path}')
 
-        self.write_log(f'Wrote {total - len(errors) - len(skips)} MHA files to {dir.as_posix()}\n'
+        self.write_log(f'Wrote {total - len(errors) - len(skips)} MHA files to {patient_dir.as_posix()}\n'
                        f'\t({plural(len(errors), "error")}{f" {errors}" if len(errors) > 0 else ""}, '
                        f'{len(skips)} skipped{f" {skips}" if len(skips) > 0 else ""})')
+
+    def invalidate(self):
+        for serie in self.valid_series:
+            serie.error = CriticalErrorInSiblingError()
+
+    @property
+    def subject_id(self) -> str:
+        return f"{self.patient_id}_{self.study_id}"
 
     @property
     def is_valid(self):
@@ -367,6 +378,9 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
     @property
     def valid_series(self):
         return [item for item in self.series if item.is_valid]
+
+    def write_log(self, msg: str):
+        self._log.append(msg)
 
     def compile_log(self):
         """For questions: Stan.Noordman@Radboudumc.nl"""
@@ -398,6 +412,9 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
                               'Errors found:',
                               *[f'\t{key}: {value}' for key, value in summary.items()],
                               '', *serie_log, ''])
+
+    def __repr__(self):
+        return f'Case({self.subject_id})'
 
 
 class Dicom2MHAConverter(Converter):
