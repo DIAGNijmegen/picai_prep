@@ -256,7 +256,7 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
                 self.series.append(serie)
 
         if not self.is_valid:
-            self.invalidate(CriticalErrorInSiblingError)
+            self.invalidate()
 
     def extract_metadata(self):
         self.write_log(f'Extracting metadata from {plural(len(self.valid_series), "serie")}')
