@@ -211,14 +211,14 @@ class MHA2nnUNetConverter(Converter):
             num_threads=self.settings.num_threads,
         )
 
-    def prepare_dataset_paths(self):
+    def _prepare_dataset_paths(self):
         """Prepare paths to scans and annotation in nnU-Net dataset.json format"""
         return [
             {
                 "image": f"./{self.scans_out_dir.name}/{case.subject_id}.nii.gz",
                 "label": f"./{self.annotations_out_dir.name}/{case.subject_id}.nii.gz"
             }
-            for case in self.cases
+            for case in self.cases if case.is_valid
         ]
 
     def create_dataset_json(self, path: PathLike = 'dataset.json', is_testset: bool = False) -> Dict:
@@ -250,13 +250,13 @@ class MHA2nnUNetConverter(Converter):
 
         if is_testset:
             dataset_settings["numTest"] = len(self.cases)
-            dataset_settings["test"] = self.prepare_dataset_paths()
+            dataset_settings["test"] = self._prepare_dataset_paths()
             if "numTraining" not in dataset_settings:
                 dataset_settings["numTraining"] = 0
                 dataset_settings["training"] = []
         else:
             dataset_settings['numTraining'] = len(self.cases)
-            dataset_settings["training"] = self.prepare_dataset_paths()
+            dataset_settings["training"] = self._prepare_dataset_paths()
             if "numTest" not in dataset_settings:
                 dataset_settings["numTest"] = 0
                 dataset_settings["test"] = []
