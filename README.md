@@ -122,10 +122,10 @@ Using this configuration file, the `MHA Archive` → `nnU-Net Raw Data Archive` 
 from picai_prep import MHA2nnUNetConverter
 
 archive = MHA2nnUNetConverter(
-    input_path="/input/path/to/mha/archive",
-    annotations_path="/input/path/to/annotations",  # defaults to input_path
-    output_path="/output/path/to/nnUNet_raw_data",
-    settings_path="/path/to/mha2nnunet_settings.json",
+    scans_dir="/input/path/to/mha/archive",
+    annotations_dir="/input/path/to/annotations",  # defaults to input_path
+    output_dir="/output/path/to/nnUNet_raw_data",
+    mha2nnunet_settings="/path/to/mha2nnunet_settings.json",
 )
 archive.convert()
 ```
