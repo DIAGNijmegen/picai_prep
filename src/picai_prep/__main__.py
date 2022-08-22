@@ -21,15 +21,21 @@ from picai_prep import Dicom2MHAConverter, MHA2nnUNetConverter, nnunet2nndet
 from picai_prep.examples import dcm2mha, mha2nnunet
 
 
-def run_dcm2mha(args):
-    """Wrapper for DICOM → MHA conversion"""
-
+def set_verbosity(args):
+    """Set verbosity level in settings"""
     if args.verbose is not None:
         # set verbosity level
         with open(args.json) as fp:
             settings = json.load(fp)
+            if "options" not in settings:
+                settings["options"] = {}
             settings["options"]["verbose"] = args.verbose
             args.json = settings
+
+
+def run_dcm2mha(args):
+    """Wrapper for DICOM → MHA conversion"""
+    set_verbosity(args)
 
     archive = Dicom2MHAConverter(
         input_dir=args.input,
@@ -58,12 +64,7 @@ def run_mha2nnunet(args):
     """Wrapper for MHA → nnUNet conversion"""
     annotations_dir = args.annotations if args.annotations else args.input
 
-    if args.verbose is not None:
-        # set verbosity level
-        with open(args.json) as fp:
-            settings = json.load(fp)
-            settings["options"]["verbose"] = args.verbose
-            args.json = settings
+    set_verbosity(args)
 
     archive = MHA2nnUNetConverter(
         output_dir=args.output,
