@@ -110,59 +110,59 @@ parser = argparse.ArgumentParser()
 subparsers = parser.add_subparsers()
 
 # Argument parser for DICOM → MHA
-dcm = subparsers.add_parser('dcm2mha')
-dcm.add_argument("-j", "--json", type=str, required=True,
-                 help="Path to JSON mappings file")
-dcm.add_argument("-i", "--input", type=str, required=True,
-                 help="Root directory for input, e.g. /path/to/archive/")
-dcm.add_argument("-o", "--output", type=str, required=True,
-                 help="Root directory for output")
-dcm.add_argument("-v", "--verbose", required=False,
-                 help="Set verbosity: 0 (no logs), 1 (default), 2 (extended logging)")
-dcm.set_defaults(func=run_dcm2mha)
+dcm2mha_parser = subparsers.add_parser('dcm2mha')
+dcm2mha_parser.add_argument("-j", "--json", type=str, required=True,
+                            help="Path to JSON mappings file")
+dcm2mha_parser.add_argument("-i", "--input", type=str, required=True,
+                            help="Root directory for input, e.g. /path/to/archive/")
+dcm2mha_parser.add_argument("-o", "--output", type=str, required=True,
+                            help="Root directory for output")
+dcm2mha_parser.add_argument("-v", "--verbose", type=int, required=False,
+                            help="Set verbosity: 0 (no logs), 1 (default), 2 (extended logging)")
+dcm2mha_parser.set_defaults(func=run_dcm2mha)
 
 
 # Argument parser for dcm2mha_settings
-mha = subparsers.add_parser('dcm2mha_settings')
-mha.add_argument("-s", "--structure", type=str, required=True,
-                 help="Structure of DICOM Archive")
-mha.add_argument("-i", "--input", type=str, required=True,
-                 help="Path to DICOM Archive")
-mha.add_argument("-j", "--json", type=str, required=True,
-                 help="Path to store dcm2mha_settings.json")
-mha.set_defaults(func=generate_dcm2mha_settings)
+dcm2mha_settings_parser = subparsers.add_parser('dcm2mha_settings')
+dcm2mha_settings_parser.add_argument("-s", "--structure", type=str, required=True,
+                                     help="Structure of DICOM Archive")
+dcm2mha_settings_parser.add_argument("-i", "--input", type=str, required=True,
+                                     help="Path to DICOM Archive")
+dcm2mha_settings_parser.add_argument("-j", "--json", type=str, required=True,
+                                     help="Path to store dcm2mha_settings.json")
+dcm2mha_settings_parser.set_defaults(func=generate_dcm2mha_settings)
 
 
 # Argument parser for MHA → nnUNet
-mha = subparsers.add_parser('mha2nnunet')
-mha.add_argument("-j", "--json", type=str, required=True,
-                 help="Path to JSON mappings file")
-mha.add_argument("-i", "--input", type=str, required=True,
-                 help="Path to PICAI .mha data")
-mha.add_argument("-a", "--annotations", type=str, required=False,
-                 help="Path to PICAI annotations (defaults to --input)")
-mha.add_argument("-o", "--output", type=str, required=True,
-                 help="Root directory for output")
-mha.add_argument("--scans_out_dirname", type=str, default="imagesTr",
-                 help="Folder for scans (relative to root directory)")
-mha.add_argument("--annotations_out_dirname", type=str, default="labelsTr",
-                 help="Folder for annotations (relative to root directory)")
-dcm.add_argument("-v", "--verbose", default=1, required=False,
-                 help="Set verbosity: 0 (no logs), 1 (default), 2 (extended logging)")
-mha.set_defaults(func=run_mha2nnunet)
+dcm2mha_parser = subparsers.add_parser('mha2nnunet')
+dcm2mha_parser.add_argument("-j", "--json", type=str, required=True,
+                            help="Path to JSON mappings file")
+dcm2mha_parser.add_argument("-i", "--input", type=str, required=True,
+                            help="Path to PICAI .mha data")
+dcm2mha_parser.add_argument("-a", "--annotations", type=str, required=False,
+                            help="Path to PICAI annotations (defaults to --input)")
+dcm2mha_parser.add_argument("-o", "--output", type=str, required=True,
+                            help="Root directory for output")
+dcm2mha_parser.add_argument("--scans_out_dirname", type=str, default="imagesTr",
+                            help="Folder for scans (relative to root directory)")
+dcm2mha_parser.add_argument("--annotations_out_dirname", type=str, default="labelsTr",
+                            help="Folder for annotations (relative to root directory)")
+dcm2mha_parser.add_argument("-v", "--verbose", default=1, required=False,
+                            help="Set verbosity: 0 (no logs), 1 (default), 2 (extended logging)")
+dcm2mha_parser.set_defaults(func=run_mha2nnunet)
 
 
 # Argument parser for mha2nnunet_settings
-mha = subparsers.add_parser('mha2nnunet_settings')
-mha.add_argument("-s", "--structure", type=str, required=True,
-                 help="Structure of MHA Archive")
-mha.add_argument("-i", "--input", type=str, required=True,
-                 help="Path to MHA Archive")
-mha.add_argument("-a", "--annotations", type=str, required=False,
-                 help="Path to PICAI annotations (defaults to --input)")
-mha.add_argument("-j", "--json", type=str, required=True,
-                 help="Path to store mha2nnunet_settings.json")
-mha.set_defaults(func=generate_mha2nnunet_settings)
+mha2nnunet_settings_parser = subparsers.add_parser('mha2nnunet_settings')
+mha2nnunet_settings_parser.add_argument("-s", "--structure", type=str, required=True,
+                                        help="Structure of MHA Archive")
+mha2nnunet_settings_parser.add_argument("-i", "--input", type=str, required=True,
+                                        help="Path to MHA Archive")
+mha2nnunet_settings_parser.add_argument("-a", "--annotations", type=str, required=False,
+                                        help="Path to PICAI annotations (defaults to --input)")
+mha2nnunet_settings_parser.add_argument("-j", "--json", type=str, required=True,
+                                        help="Path to store mha2nnunet_settings.json")
+mha2nnunet_settings_parser.set_defaults(func=generate_mha2nnunet_settings)
 
 
 # Argument parser for nnUNet → nnDetection
