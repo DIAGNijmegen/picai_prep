@@ -218,7 +218,7 @@ class MHA2nnUNetConverter(Converter):
                 "image": f"./{self.scans_out_dir.name}/{case.subject_id}.nii.gz",
                 "label": f"./{self.annotations_out_dir.name}/{case.subject_id}.nii.gz"
             }
-            for case in self.cases if case.is_valid
+            for case in self.valid_cases
         ]
 
     def create_dataset_json(self, path: PathLike = 'dataset.json', is_testset: bool = False) -> Dict:
@@ -265,3 +265,7 @@ class MHA2nnUNetConverter(Converter):
             json.dump(dataset_settings, fp, indent=4)
 
         return dataset_settings
+
+    @property
+    def valid_cases(self):
+        return [case for case in self.cases if case.is_valid]
