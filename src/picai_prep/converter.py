@@ -13,9 +13,7 @@ from tqdm import tqdm
 class Case(ABC):
     patient_id: str
     study_id: str
-
     error: Optional[Exception] = None
-
     _log: List[str] = field(default_factory=list)
 
     @abstractmethod
@@ -28,7 +26,7 @@ class Case(ABC):
     def convert(self, **kargs):
         """"
         Execute conversion process, while handling errors.
-        Please override the convert_item method to implement the conversion process.
+        Please override the `convert_item` method to implement the conversion process.
         """
         try:
             self.convert_item(**kargs)
@@ -56,7 +54,7 @@ class Case(ABC):
         raise NotImplementedError()
 
     def __repr__(self):
-        return f'Case({self.patient_id}_{self.study_id})'
+        return f'Case({self.subject_id})'
 
 
 class Converter:
@@ -64,9 +62,9 @@ class Converter:
     def initialize_log(output_dir: Path, verbose: int):
         if verbose >= 1:
             logfile = output_dir / f'picai_prep_{datetime.now().strftime("%Y%m%d%H%M%S")}.log'
+            print(f'Writing log to {logfile.absolute()}')
             logging.basicConfig(level=logging.INFO, format='%(message)s', filename=logfile)
             logging.info(f'Output directory set to {output_dir.absolute().as_posix()}')
-            print(f'Writing log to {logfile.absolute()}')
         else:
             logging.disable(logging.INFO)
 

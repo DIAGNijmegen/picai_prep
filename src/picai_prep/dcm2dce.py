@@ -137,6 +137,10 @@ class Dicom2DCEConverter(Dicom2MHAConverter):
         dcm2dce_settings: Union[PathLike, Dict] = None,
         case_class: Case = Dicom2DCECase,
     ):
+        """
+        Convert DCE scans from a DICOM Archive to a single 4D MHA scan.
+        Experimental.
+        """
         super().__init__(
             input_dir=input_dir,
             output_dir=output_dir,
