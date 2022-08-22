@@ -15,6 +15,7 @@
 
 import os
 import shutil
+import subprocess
 from pathlib import Path
 
 import SimpleITK as sitk
@@ -35,13 +36,59 @@ def test_dcm2mha(
     if os.path.exists(output_dir):
         shutil.rmtree(output_dir)
 
-    # test usage from command line
+    # test usage from Python
     archive = Dicom2MHAConverter(
         input_dir=input_dir,
         output_dir=output_dir,
         dcm2mha_settings="tests/output-expected/dcm2mha_settings.json"
     )
     archive.convert()
+
+    # compare output
+    for patient_id, subject_id in [
+        ("ProstateX-0000", "ProstateX-0000_07-07-2011"),
+        ("ProstateX-0001", "ProstateX-0001_07-08-2011"),
+    ]:
+        for modality in ["t2w", "adc", "hbv", "sag", "cor"]:
+            # construct paths to MHA images
+            path_out = os.path.join(output_dir, patient_id, f"{subject_id}_{modality}.mha")
+            path_out_expected = os.path.join(output_expected_dir, patient_id, f"{subject_id}_{modality}.mha")
+
+            # sanity check: check if outputs exist
+            assert os.path.exists(path_out), f"Could not find output file at {path_out}!"
+            assert os.path.exists(path_out_expected), f"Could not find output file at {path_out_expected}!"
+
+            # read images
+            img = sitk.GetArrayFromImage(sitk.ReadImage(str(path_out)))
+            img_expected = sitk.GetArrayFromImage(sitk.ReadImage(str(path_out_expected)))
+
+            # compare images
+            assert_allclose(img_expected, img)
+
+
+def test_dcm2mha_commandline(
+    input_dir: str = "tests/input/dcm/ProstateX",
+    output_dir: str = "tests/output/mha/ProstateX",
+    output_expected_dir: str = "tests/output-expected/mha/ProstateX",
+):
+    """
+    Convert sample DICOM archive to MHA
+    """
+    # remove output folder (to prevent skipping the conversion)
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
+
+    # test usage from command line
+    cmd = [
+        "python", "-m", "picai_prep", "dcm2mha",
+        "--input", input_dir,
+        "--output", output_dir,
+        "--json", "tests/output-expected/dcm2mha_settings.json",
+        "--verbose", "2",
+    ]
+
+    # run command
+    subprocess.check_call(cmd)
 
     # compare output
     for patient_id, subject_id in [
