@@ -14,6 +14,7 @@
 
 
 import argparse
+import json
 import sys
 
 from picai_prep import Dicom2MHAConverter, MHA2nnUNetConverter, nnunet2nndet
@@ -22,6 +23,14 @@ from picai_prep.examples import dcm2mha, mha2nnunet
 
 def run_dcm2mha(args):
     """Wrapper for DICOM → MHA conversion"""
+
+    if args.verbose is not None:
+        # set verbosity level
+        with open(args.json) as fp:
+            settings = json.load(fp)
+            settings["options"]["verbose"] = args.verbose
+            args.json = settings
+
     archive = Dicom2MHAConverter(
         input_dir=args.input,
         output_dir=args.output,
@@ -47,16 +56,22 @@ def generate_dcm2mha_settings(args):
 
 def run_mha2nnunet(args):
     """Wrapper for MHA → nnUNet conversion"""
-    annotations_path = args.annotations if args.annotations else args.input
+    annotations_dir = args.annotations if args.annotations else args.input
+
+    if args.verbose is not None:
+        # set verbosity level
+        with open(args.json) as fp:
+            settings = json.load(fp)
+            settings["options"]["verbose"] = args.verbose
+            args.json = settings
 
     archive = MHA2nnUNetConverter(
-        input_path=args.input,
-        output_path=args.output,
-        annotations_path=annotations_path,
-        settings_path=args.json,
-        out_dir_scans=args.out_dir_scans,
-        out_dir_annot=args.out_dir_annot,
-        silent=args.silent
+        output_dir=args.output,
+        scans_dir=args.input,
+        mha2nnunet_settings=args.json,
+        scans_out_dirname=args.scans_out_dirname,
+        annotations_dir=annotations_dir,
+        annotations_out_dirname=args.annotations_out_dirname,
     )
     archive.convert()
 
@@ -102,8 +117,8 @@ dcm.add_argument("-i", "--input", type=str, required=True,
                  help="Root directory for input, e.g. /path/to/archive/")
 dcm.add_argument("-o", "--output", type=str, required=True,
                  help="Root directory for output")
-dcm.add_argument("-s", "--silent", action='store_true', required=False,
-                 help="Mute log messages")
+dcm.add_argument("-v", "--verbose", required=False,
+                 help="Set verbosity: 0 (no logs), 1 (default), 2 (extended logging)")
 dcm.set_defaults(func=run_dcm2mha)
 
 
@@ -128,12 +143,12 @@ mha.add_argument("-a", "--annotations", type=str, required=False,
                  help="Path to PICAI annotations (defaults to --input)")
 mha.add_argument("-o", "--output", type=str, required=True,
                  help="Root directory for output")
-mha.add_argument("--out_dir_scans", type=str, default="imagesTr",
+mha.add_argument("--scans_out_dirname", type=str, default="imagesTr",
                  help="Folder for scans (relative to root directory)")
-mha.add_argument("--out_dir_annot", type=str, default="labelsTr",
+mha.add_argument("--annotations_out_dirname", type=str, default="labelsTr",
                  help="Folder for annotations (relative to root directory)")
-mha.add_argument("-s", "--silent", action='store_true', required=False,
-                 help="Mute log messages")
+dcm.add_argument("-v", "--verbose", default=1, required=False,
+                 help="Set verbosity: 0 (no logs), 1 (default), 2 (extended logging)")
 mha.set_defaults(func=run_mha2nnunet)
 
 
