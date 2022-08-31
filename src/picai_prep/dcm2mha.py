@@ -152,7 +152,7 @@ class Series:
                 # metadata does not exist
                 return False
 
-            # check if observed value matches with the allowed values
+            # check if the observed value matches with any of the allowed values
             if not any(values_match_func(needle=value, haystack=metadata[dicom_tag]) for value in allowed_values):
                 return False
 
@@ -162,7 +162,7 @@ class Series:
         self,
         mappings: Mappings,
         metadata_match_func: Optional[Callable[[Metadata, Mappings], bool]] = None,
-        values_match_func: Optional[Callable[[str, str], bool]] = None,
+        values_match_func: Optional[Union[Callable[[str, str], bool], str]] = "lower_strip_equals",
     ) -> None:
         """
         Apply mappings to the series
@@ -446,10 +446,10 @@ class Dicom2MHAConverter(Converter):
                     Default: False
                 - metadata_match_func: method to match DICOM metadata to MHA sequences. Only use
                     this if you know what you're doing.
-                    Default: None
+                    Default: check if the observed value matches with any of the allowed values.
                 - values_match_func: criteria to consider two values a match, when comparing the
                     value from the DICOM metadata against the provided allowed vaues in the mapping.
-                    Default: None
+                    Default: lower_strip_equals (case-insensitive matching of values without trailing or leading spaces)
                 - verbose: control logfile verbosity. 0 does not output a logfile,
                     1 logs cases which have critically failed, 2 logs all cases (may lead to
                     very large log files)
