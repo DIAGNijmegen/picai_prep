@@ -31,8 +31,7 @@ from picai_prep.errors import (ArchiveItemPathNotFoundError,
                                MissingDICOMFilesError, NoMappingsApplyError,
                                UnreadableDICOMError)
 from picai_prep.utilities import (dcm2mha_schema, dicom_tags,
-                                  get_pydicom_value, lower_strip,
-                                  make_sitk_readers, plural)
+                                  get_pydicom_value, make_sitk_readers, plural)
 
 Metadata = Dict[str, str]
 Mapping = Dict[str, List[str]]
@@ -72,9 +71,7 @@ class Series:
     metadata: Optional[Metadata] = field(default_factory=dict)
 
     mappings: List[str] = field(default_factory=list)
-
     error: Optional[Exception] = None
-
     _log: List[str] = field(default_factory=list)
 
     def __post_init__(self):
@@ -150,12 +147,12 @@ class Series:
         By default, values are trimmed from whitespace and case-insensitively compared.
         """
         for dicom_tag, allowed_values in mapping.items():
-            dicom_tag = lower_strip(dicom_tag)
+            dicom_tag = dicom_tag.lower().strip()
             if dicom_tag not in metadata:
-                # metadata does not contain the information we need
+                # metadata does not exist
                 return False
 
-            # check if observed value is in the list of allowed values
+            # check if observed value matches with the allowed values
             if not any(values_match_func(needle=value, haystack=metadata[dicom_tag]) for value in allowed_values):
                 return False
 
@@ -242,6 +239,7 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
         for path in self.paths:
             full_path = self.input_dir / path
             serie = Series(full_path, self.patient_id, self.study_id)
+
             # if we find duplicate paths with the same patient and study id,
             # invalidate this series and continue for logging purposes
             if path in full_paths:
@@ -423,6 +421,9 @@ class Dicom2MHAConverter(Converter):
         case_class: Case = Dicom2MHACase,
     ):
         """
+        Convert DICOM Archive to MHA Archive.
+        See https://github.com/DIAGNijmegen/picai_prep for additional documentation.
+
         Parameters
         ----------
         input_dir: PathLike
@@ -497,6 +498,7 @@ class Dicom2MHAConverter(Converter):
 
 
 def read_image_series(image_series_path: PathLike) -> sitk.Image:
+    """Read folder containing DICOM slices and return a single SimpleITK image."""
     file_reader, series_reader = make_sitk_readers()
     dicom_slice_paths = series_reader.GetGDCMSeriesFileNames(str(image_series_path))
 

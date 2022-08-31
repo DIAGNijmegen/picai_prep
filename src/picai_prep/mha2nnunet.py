@@ -92,7 +92,10 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
             self.write_log(f'\t+ {self.annotation_path}')
 
     def process_and_write(self, scans_out_dir: Path, annotations_out_dir: Path):
-        self.write_log(f'Writing {plural(len(self.verified_scan_paths), "scan")}' + ' including annotation' if self.annotation_path else '')
+        self.write_log(
+            f'Writing {plural(len(self.verified_scan_paths), "scan")}'
+            + ' including annotation' if self.annotation_path else ''
+        )
 
         scans = [sitk.ReadImage(path.as_posix()) for path in self.verified_scan_paths]
         lbl = sitk.ReadImage(self.annotation_path.as_posix()) if self.annotation_path else None
@@ -146,6 +149,9 @@ class MHA2nnUNetConverter(Converter):
         annotations_out_dirname: Optional[str] = 'labelsTr',
     ):
         """
+        Convert an MHA Archive to an nnUNet Raw Data Archive.
+        See https://github.com/DIAGNijmegen/picai_prep for additional documentation.
+
         Parameters
         ----------
         output_dir: PathLike
@@ -160,7 +166,8 @@ class MHA2nnUNetConverter(Converter):
             dirname to store annotation output, will be a direct descendant of `output_dir`.
         mha2nnunet_settings: Union[PathLike, Dict]
             object with cases, nnUNet-shaped dataset.json and optional parameters.
-            May be a dictionary containing mappings, dataset.json, and optionally options, or a path to a JSON file with these elements.
+            May be a dictionary containing mappings, dataset.json, and optionally options, 
+            or a path to a JSON file with these elements.
             - dataset_json: see nnU-Net's dataset conversion on details for the dataset.json file:
                 https://github.com/MIC-DKFZ/nnUNet/blob/master/documentation/dataset_conversion.md
             - cases: list of objects. Each case should be an object with a patient_id,
@@ -177,6 +184,7 @@ class MHA2nnUNetConverter(Converter):
             with open(mha2nnunet_settings) as fp:
                 mha2nnunet_settings = json.load(fp)
 
+        # validate and parse settings
         jsonschema.validate(mha2nnunet_settings, mha2nnunet_schema, cls=jsonschema.Draft7Validator)
         self.settings = MHA2nnUNetSettings(
             dataset_json=mha2nnunet_settings['dataset_json'],
@@ -184,6 +192,7 @@ class MHA2nnUNetConverter(Converter):
             **mha2nnunet_settings.get('options', {})
         )
 
+        # set up paths and create output directory
         self.scans_dir = Path(scans_dir)
         self.annotations_dir = Path(annotations_dir) if annotations_dir else None
 
@@ -193,12 +202,17 @@ class MHA2nnUNetConverter(Converter):
         self.scans_out_dir = output_dir / self.settings.task_name / scans_out_dirname
         self.annotations_out_dir = output_dir / self.settings.task_name / annotations_out_dirname if annotations_dir else None
 
+        # initialize cases to convert
         self.cases = self._init_cases(mha2nnunet_settings['archive'])
 
+        # set up logfile
         self.initialize_log(output_dir, self.settings.verbose)
 
-    def _init_cases(self, archive: List[Dict]) -> List[MHA2nnUNetCase]:
-        return [MHA2nnUNetCase(scans_dir=self.scans_dir, annotations_dir=self.annotations_dir, settings=self.settings, **kwargs) for kwargs in archive]
+    def _init_cases(self, archive: List[Dict[str, Any]]) -> List[MHA2nnUNetCase]:
+        return [
+            MHA2nnUNetCase(scans_dir=self.scans_dir, annotations_dir=self.annotations_dir, settings=self.settings, **kwargs)
+            for kwargs in archive
+        ]
 
     def convert(self):
         self._convert(
@@ -218,7 +232,7 @@ class MHA2nnUNetConverter(Converter):
                 "image": f"./{self.scans_out_dir.name}/{case.subject_id}.nii.gz",
                 "label": f"./{self.annotations_out_dir.name}/{case.subject_id}.nii.gz"
             }
-            for case in self.cases if case.is_valid
+            for case in self.valid_cases
         ]
 
     def create_dataset_json(self, path: PathLike = 'dataset.json', is_testset: bool = False) -> Dict:
@@ -265,3 +279,7 @@ class MHA2nnUNetConverter(Converter):
             json.dump(dataset_settings, fp, indent=4)
 
         return dataset_settings
+
+    @property
+    def valid_cases(self):
+        return [case for case in self.cases if case.is_valid]

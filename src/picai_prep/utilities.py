@@ -23,10 +23,6 @@ from picai_prep.resources.dicom_tags import dicom_tags
 from picai_prep.resources.mha2nnunet_schema import mha2nnunet_schema
 
 
-def lower_strip(s: str):
-    return s.lower().strip()
-
-
 def plural(num: int, word: str):
     return f"{num} {word}{'' if num == 1 else 's'}"
 
