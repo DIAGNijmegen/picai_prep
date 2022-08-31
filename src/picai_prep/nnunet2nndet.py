@@ -131,6 +131,10 @@ def nnunet2nndet(
     in_dir_scans: PathLike = "imagesTr",
     out_dir_scans: PathLike = "raw_splitted/imagesTr",
 ):
+    """
+    Convert nnU-Net Raw Data Archive to nnDetection Raw Data Archive.
+    Each instance needs be isolated for this conversion to be correct.
+    """
     # input verification
     nnunet_raw_data_path = Path(nnunet_raw_data_path)
     nndet_raw_data_path = Path(nndet_raw_data_path)

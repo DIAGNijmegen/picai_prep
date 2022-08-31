@@ -19,19 +19,15 @@ import pydicom
 import SimpleITK as sitk
 
 from picai_prep.resources.dcm2mha_schema import dcm2mha_schema
-from picai_prep.resources.metadata import metadata_dict
+from picai_prep.resources.dicom_tags import dicom_tags
 from picai_prep.resources.mha2nnunet_schema import mha2nnunet_schema
 
 
-def lower_strip(s: str):
-    return s.lower().strip()
+def plural(num: int, word: str):
+    return f"{num} {word}{'' if num == 1 else 's'}"
 
 
-def plural(v: int, s: str):
-    return f"{v} {s}{'' if v == 1 else 's'}"
-
-
-def get_pydicom_value(data: pydicom.dataset.FileDataset, key: str):
+def get_pydicom_value(data: pydicom.dataset.Dataset, key: str):
     key = '0x' + key.replace('|', '')
     if key in data:
         result = data[key]
@@ -50,20 +46,9 @@ def make_sitk_readers() -> Tuple[sitk.ImageFileReader, sitk.ImageSeriesReader]:
     return file_reader, series_reader
 
 
-metadata_defaults = {
-    "patient_id": {
-        "key": "0010|0020",
-        "error": "No PatientID metadata key found and no custom 'patient_id' provided"
-    },
-    "study_id": {
-        "key": "0020|000d",
-        "error": "No StudyInstanceUID metadata key found and no custom 'study_id' provided"
-    },
-}
-
 __all__ = [
     # Explicitly expose these functions for easier imports
     "dcm2mha_schema",
-    "metadata_dict",
+    "dicom_tags",
     "mha2nnunet_schema",
 ]

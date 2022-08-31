@@ -13,329 +13,273 @@
 #  limitations under the License.
 
 
-import dataclasses
 import json
-import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
+import logging
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import jsonschema
 import SimpleITK as sitk
-from tqdm import tqdm
 
-from picai_prep.archive import ArchiveConverter
+from picai_prep.converter import Case, Converter
 from picai_prep.data_utils import PathLike, atomic_image_write
 from picai_prep.preprocessing import PreprocessingSettings, Sample
 from picai_prep.utilities import mha2nnunet_schema, plural
 
 
 @dataclass
-class ConversionItem():
-    """Class to hold conversion information"""
-    input_dir: PathLike
-    annotations_dir: Optional[PathLike]
-    patient_id: str
-    study_id: str
-    scan_paths: List[PathLike]
-    out_dir_scans: PathLike = "imagesTr"
-    out_dir_annot: PathLike = "labelsTr"
-    annotation_path: Optional[PathLike] = None
-    all_scan_properties: List[Dict[str, Any]] = dataclasses.field(default_factory=list)
-    label_properties: Dict[str, Any] = dataclasses.field(default_factory=dict)
-    error: Optional[Tuple[str, str]] = None
-    skip: bool = False
-
-    def __post_init__(self):
-        # convert input paths
-        self.input_dir = Path(self.input_dir)
-        if self.annotations_dir is not None:
-            self.annotations_dir = Path(self.annotations_dir)
-        self.scan_paths = [Path(path) for path in self.scan_paths]
-        self.out_dir_scans = Path(self.out_dir_scans)
-        self.out_dir_annot = Path(self.out_dir_annot)
-
-        output_paths = []
-        # check if all scans exist and append to conversion plan
-        for i, scan_path in enumerate(self.scan_paths):
-            # check (relative) path of input scans
-            path = self.input_dir / scan_path
-            if not os.path.exists(path):
-                self.error = (f"Scan not found at {path}", 'scan not found')
-                continue
-
-            output_path = self.out_dir_scans / f"{self.subject_id}_{i:04d}.nii.gz"
-            self.all_scan_properties += [{
-                'input_path': path,
-                'output_path': output_path,
-            }]
-            output_paths += [output_path]
-
-        # check if annotation exists and append to conversion plan
-        if self.annotation_path is not None:
-            if self.annotations_dir is None:
-                self.annotations_dir = self.input_dir
-
-            # check (relative) path of input scans
-            path = self.annotations_dir / self.annotation_path
-            if not os.path.exists(path):
-                self.error = (f"Annotation not found at {path}", 'annotation not found')
-
-            output_path = self.out_dir_annot / f"{self.subject_id}.nii.gz"
-            self.label_properties = {
-                'input_path': path,
-                'output_path': output_path,
-            }
-            output_paths += [output_path]
-
-        # check if all files already exist
-        if all([os.path.exists(path) for path in output_paths]):
-            self.skip = True
+class MHA2nnUNetSettings:
+    dataset_json: Dict[str, Any]
+    preprocessing: PreprocessingSettings
+    scans_dirname: PathLike = "imagesTr"
+    annotation_dirname: PathLike = "labelsTr"
+    annotation_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
+    annotation_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
+    scan_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
+    scan_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
+    num_threads: int = 4
+    verbose: int = 1
 
     @property
-    def subject_id(self):
-        return f"{self.patient_id}_{self.study_id}"
+    def task_name(self) -> str:
+        return self.dataset_json['task']
 
 
-class MHA2nnUNetConverter(ArchiveConverter):
-    def __init__(
-        self,
-        input_path: PathLike,
-        output_path: PathLike,
-        settings_path: PathLike,
-        annotations_path: Optional[PathLike] = None,
-        lbl_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None,
-        lbl_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None,
-        scan_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None,
-        scan_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None,
-        out_dir_scans: PathLike = "imagesTr",
-        out_dir_annot: PathLike = "labelsTr",
-        num_threads: int = 4,
-        silent: bool = False,
-    ):
-        """
-        Converts MHA archive into nnUNet raw data format, as specified by the conversion json.
+@dataclass
+class _MHA2nnUNetCaseBase:
+    scans_dir: Path
+    annotations_dir: Path
+    scan_paths: List[Path]
+    settings: MHA2nnUNetSettings
 
-        Parameters:
-        - input_path: Root directory for input, e.g. /path/to/archive/
-        - output_path: Root directory for output
-        - archive: JSON mappings file
-                   Verifies whether archive.json returns a valid object prior to initialization
-        - silent: control verbosity of conversion process
-        """
-        super().__init__(
-            input_path=input_path,
-            output_path=output_path,
-            num_threads=num_threads,
-            silent=silent
+
+@dataclass
+class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
+    annotation_path: Optional[Path] = None
+    verified_scan_paths: List[Path] = field(default_factory=list)
+
+    def __post_init__(self):
+        if self.annotations_dir and self.annotation_path:
+            self.annotation_path = self.annotations_dir / self.annotation_path
+
+    def convert_item(self, scans_out_dir: Path, annotations_out_dir: Path) -> None:
+        self.initialize()
+        self.process_and_write(scans_out_dir, annotations_out_dir)
+
+    def initialize(self):
+        self.write_log(f'Importing {plural(len(self.scan_paths), "scans")}')
+
+        missing_paths = []
+        for scan_path in self.scan_paths:
+            # check (relative) path of input scans
+            path = self.scans_dir / scan_path
+            if not path.exists():
+                missing_paths.append(path)
+                continue
+
+            self.verified_scan_paths.append(path)
+            self.write_log(f'\t+ ({len(self.verified_scan_paths)}) {path}')
+
+        if len(missing_paths) > 0:
+            raise FileNotFoundError(','.join([str(p) for p in missing_paths]))
+
+        if self.annotation_path:
+            self.write_log('Importing annotation')
+            if not self.annotation_path.exists():
+                raise FileNotFoundError(self.annotation_path)
+
+            self.write_log(f'\t+ {self.annotation_path}')
+
+    def process_and_write(self, scans_out_dir: Path, annotations_out_dir: Path):
+        self.write_log(
+            f'Writing {plural(len(self.verified_scan_paths), "scan")}'
+            + ' including annotation' if self.annotation_path else ''
         )
-        if annotations_path is not None:
-            annotations_path = Path(annotations_path)
-        self.create_dataset_json = True
 
-        # read and verify conversion settings
-        with open(settings_path) as fp:
-            settings = json.load(fp)
-        jsonschema.validate(settings, mha2nnunet_schema, cls=jsonschema.Draft7Validator)
-
-        # store conversion settings
-        self.preprocessing_settings = PreprocessingSettings(**settings['preprocessing'])
-        self.items = settings['archive']
-        self.dataset_json = settings['dataset_json']
-        self.conversion_plan: List[ConversionItem] = []
-        self.out_dir_scans = out_dir_scans
-        self.out_dir_annot = out_dir_annot
-        self.annotations_path = annotations_path
-        self.lbl_preprocess_func = lbl_preprocess_func
-        self.lbl_postprocess_func = lbl_postprocess_func
-        self.scan_preprocess_func = scan_preprocess_func
-        self.scan_postprocess_func = scan_postprocess_func
-
-        self.next_history()  # create initial history step
-        self.info("Provided mha2nnunet archive is valid.", self.get_history_report())  # report number of items
-        self.next_history()  # next history
-
-    def _plan(self):
-        """
-        Build full conversion plan
-        """
-        # parse parameters
-        self.info(f"Starting preprocessing script for {self.task}.\n"
-                  + f"\tReading scans from {self.input_dir}\n"
-                  + (f"\tReading annotations from {self.annotations_path}\n" if self.annotations_path else "")
-                  + f"\nCreating preprocessing plan with {self.valid_items_str()}.")
-
-        total_scans, total_lbl = 0, 0
-
-        for item in self.items:
-            # parse conversion info and store result
-            conv_item = ConversionItem(
-                input_dir=self.input_dir,
-                annotations_dir=self.annotations_path,
-                out_dir_scans=self.output_dir / self.task / self.out_dir_scans,
-                out_dir_annot=self.output_dir / self.task / self.out_dir_annot,
-                **item
-            )
-            item['conversion_item'] = conv_item
-            if conv_item.error is not None:
-                message, error_type = conv_item.error
-                item['error'] = message
-                self.item_log(item, error_type)
-            else:
-                total_scans += len(item['scan_paths'])
-                total_lbl += 1 if 'annotation_path' in item else 0
-
-        self.info(f"Preprocessing plan completed, with {self.valid_items_str()} containing a total of "
-                  f"{plural(total_scans, 'scan')} and {plural(total_lbl, 'label')}.",
-                  self.get_history_report())
-
-    def _convert_item(self, item) -> bool:
-        conv_item = item['conversion_item']
-        if conv_item.skip:
-            # skip, already converted
-            return False
-
-        # read images
-        scans = []
-        for scan_properties in conv_item.all_scan_properties:
-            scans += [sitk.ReadImage(str(scan_properties['input_path']))]
-
-        # read label
-        lbl = None
-        if conv_item.label_properties:
-            lbl = sitk.ReadImage(str(conv_item.label_properties['input_path']))
+        scans = [sitk.ReadImage(path.as_posix()) for path in self.verified_scan_paths]
+        lbl = sitk.ReadImage(self.annotation_path.as_posix()) if self.annotation_path else None
 
         # set up Sample
         sample = Sample(
             scans=scans,
             lbl=lbl,
-            settings=self.preprocessing_settings,
-            lbl_preprocess_func=self.lbl_preprocess_func,
-            lbl_postprocess_func=self.lbl_postprocess_func,
-            scan_preprocess_func=self.scan_preprocess_func,
-            scan_postprocess_func=self.scan_postprocess_func,
-            name=conv_item.subject_id
+            settings=self.settings.preprocessing,
+            lbl_preprocess_func=self.settings.annotation_preprocess_func,
+            lbl_postprocess_func=self.settings.annotation_postprocess_func,
+            scan_preprocess_func=self.settings.scan_preprocess_func,
+            scan_postprocess_func=self.settings.scan_postprocess_func,
+            name=self.subject_id
         )
 
         # perform preprocessing
         sample.preprocess()
 
         # write images
-        for scan, scan_properties in zip(sample.scans, conv_item.all_scan_properties):
-            atomic_image_write(scan, path=scan_properties['output_path'], mkdir=True)
+        for i, scan in enumerate(sample.scans):
+            destination_path = scans_out_dir / f"{self.subject_id}_{i:04d}.nii.gz"
+            atomic_image_write(scan, path=destination_path, mkdir=True)
+            self.write_log(f'Wrote image to {destination_path}')
 
-        if sample.lbl:
-            atomic_image_write(sample.lbl, path=conv_item.label_properties['output_path'], mkdir=True)
+        if lbl:
+            destination_path = annotations_out_dir / f"{self.subject_id}.nii.gz"
+            atomic_image_write(sample.lbl, path=annotations_out_dir / f"{self.subject_id}.nii.gz", mkdir=True)
+            self.write_log(f'Wrote annotation to {destination_path}')
 
-        return True
-
-    def _write(self):
-        """
-        Preprocess studies for nnUNet
-
-        Requires:
-        - all_scan_properties: list of scan properties:
-        [
-            {
-                'input_path': path to input scan (T2/ADC/high b-value/etc.),
-                'output_path': path to store preprocessed scan,
-            }
-        ]
-
-        - label_properties: label properties:
-        {
-            'input_path': path to label,
-            'output_path': path to store preprocessed label,
-        }
-        """
-        successes, errors = 0, 0
-
-        with ThreadPoolExecutor(max_workers=self.num_threads) as pool:
-            futures = {pool.submit(self._convert_item, item): item for item in self.valid_items}
-            for future in tqdm(as_completed(futures), total=self.num_valid_items):
-                item = futures[future]
-                try:
-                    success = future.result()
-                except Exception as e:
-                    item['error'] = f'Unexpected error: {e}'
-                    self.item_log(item, 'unexpected error')
-                    errors += 1
-                else:
-                    successes += 1 if success else 0
-
-        skipped = self.num_valid_items - successes - errors
-        self.info(f"Processed {plural(self.num_valid_items, 'item')}, "
-                  f"with {plural(skipped, 'case')} skipped and {plural(errors, 'error')}.")
-
-    def generate_json(self):
-        """
-        Create dataset.json for nnUNet raw data archive
-        """
-        if self.create_dataset_json:
-            # use contents of archive->dataset_json as starting point
-            json_dict = dict(self.dataset_json)
-            if 'name' not in json_dict:
-                json_dict['name'] = self.name
-            json_dict['numTraining'] = self.num_valid_items
-            json_dict['numTest'] = 0  # not implemented currently
-            json_dict['training'] = [
-                {
-                    "image": f"./imagesTr/{item['conversion_item'].subject_id}.nii.gz",
-                    "label": f"./labelsTr/{item['conversion_item'].subject_id}.nii.gz"
-                }
-                for item in self.valid_items
-            ]
-            json_dict['test'] = []
-
-            dataset_fn = self.output_dir / self.task / "dataset.json"
-            if not os.path.exists(dataset_fn):
-                self.info(f"Saving dataset info to {dataset_fn}")
-                with open(dataset_fn, 'w') as fp:
-                    json.dump(json_dict, fp, indent=4)
-
-    def convert(self):
-        """
-        Perform conversion steps:
-        1. Gather metadata
-        2. Preprocess and write scans
-        3. Generate dataset.json
-        """
-        for step in [self._plan, self._write]:
-            if self.has_valid_items:
-                step()
-                self.next_history()
-            else:
-                self.info("Aborted conversion, no items to convert.")
-
-        if len(self.items) == self.num_valid_items:
-            self.generate_json()
-        else:
-            self.info(f"Did not generate dataset.json, as only {self.num_valid_items}/{len(self.items)} items are converted successfully.")
-
-        self.complete()
-
-    def item_log_value(self, item: Dict[str, str]):
-        lpad = ' ' * (len(str(len(self.items))) + 1)
-
-        if 'error' in item:
-            result = f"{lpad}{item['error']}"
-        elif 'skip' in item:
-            result = f"{lpad}{item['skip']}"
-        else:
+    def compile_log(self):
+        if self.settings.verbose == 0:
             return None
 
-        return f"{str(self.items.index(item)).zfill(len(lpad))} {item['patient_id']}/{item['study_id']}\n" \
-               f"\t{result}"
+        if self.is_valid or self.settings.verbose >= 2:
+            return '\n'.join(['=' * 120,
+                              f'CASE {self.subject_id}',
+                              f'\tPATIENT ID\t{self.patient_id}',
+                              f'\tSTUDY ID\t{self.study_id}\n',
+                              *self._log])
 
-    @property
-    def task(self):
-        return self.dataset_json['task']
 
-    @property
-    def name(self):
-        if 'name' in self.dataset_json:
-            return self.dataset_json['name']
+class MHA2nnUNetConverter(Converter):
+    def __init__(
+        self,
+        output_dir: PathLike,
+        scans_dir: PathLike,
+        mha2nnunet_settings: Union[PathLike, Dict],
+        scans_out_dirname: str = 'imagesTr',
+        annotations_dir: Optional[PathLike] = None,
+        annotations_out_dirname: Optional[str] = 'labelsTr',
+    ):
+        """
+        Convert an MHA Archive to an nnUNet Raw Data Archive.
+        See https://github.com/DIAGNijmegen/picai_prep for additional documentation.
+
+        Parameters
+        ----------
+        output_dir: PathLike
+            path to store the resulting nnUNet archive.
+        scans_dir: PathLike
+            directory name to store scans in, relative to `output_dir`.
+        scans_out_dirname: str, default: 'imagesTr'
+            dirname to store scan output, will be a direct descendant of `output_dir`.
+        annotations_dir: PathLike
+            path to the annotations archive. Used as base path for the relative paths of the archive items.
+        annotations_out_dirname: str, default: 'labelsTr'
+            dirname to store annotation output, will be a direct descendant of `output_dir`.
+        mha2nnunet_settings: Union[PathLike, Dict]
+            object with cases, nnUNet-shaped dataset.json and optional parameters.
+            May be a dictionary containing mappings, dataset.json, and optionally options, 
+            or a path to a JSON file with these elements.
+            - dataset_json: see nnU-Net's dataset conversion on details for the dataset.json file:
+                https://github.com/MIC-DKFZ/nnUNet/blob/master/documentation/dataset_conversion.md
+            - cases: list of objects. Each case should be an object with a patient_id,
+                study_id, relative paths to scans and optionally a path to an annotation
+            - options: (optional)
+                - num_threads: number of multithreading threads.
+                    Default: 4.
+                - verbose: control logfile verbosity. 0 does not output a logfile,
+                    1 logs cases which have critically failed, 2 logs all cases (may lead to
+                    very large log files)
+                    Default: 1
+        """
+        if isinstance(mha2nnunet_settings, (Path, str)):
+            with open(mha2nnunet_settings) as fp:
+                mha2nnunet_settings = json.load(fp)
+
+        # validate and parse settings
+        jsonschema.validate(mha2nnunet_settings, mha2nnunet_schema, cls=jsonschema.Draft7Validator)
+        self.settings = MHA2nnUNetSettings(
+            dataset_json=mha2nnunet_settings['dataset_json'],
+            preprocessing=PreprocessingSettings(**mha2nnunet_settings['preprocessing']),
+            **mha2nnunet_settings.get('options', {})
+        )
+
+        # set up paths and create output directory
+        self.scans_dir = Path(scans_dir)
+        self.annotations_dir = Path(annotations_dir) if annotations_dir else None
+
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        self.scans_out_dir = output_dir / self.settings.task_name / scans_out_dirname
+        self.annotations_out_dir = output_dir / self.settings.task_name / annotations_out_dirname if annotations_dir else None
+
+        # initialize cases to convert
+        self.cases = self._init_cases(mha2nnunet_settings['archive'])
+
+        # set up logfile
+        self.initialize_log(output_dir, self.settings.verbose)
+
+    def _init_cases(self, archive: List[Dict[str, Any]]) -> List[MHA2nnUNetCase]:
+        return [
+            MHA2nnUNetCase(scans_dir=self.scans_dir, annotations_dir=self.annotations_dir, settings=self.settings, **kwargs)
+            for kwargs in archive
+        ]
+
+    def convert(self):
+        self._convert(
+            title='MHA2nnUNet',
+            cases=self.cases,
+            parameters={
+                'scans_out_dir': self.scans_out_dir,
+                'annotations_out_dir': self.annotations_out_dir
+            },
+            num_threads=self.settings.num_threads,
+        )
+
+    def _prepare_dataset_paths(self):
+        """Prepare paths to scans and annotation in nnU-Net dataset.json format"""
+        return [
+            {
+                "image": f"./{self.scans_out_dir.name}/{case.subject_id}.nii.gz",
+                "label": f"./{self.annotations_out_dir.name}/{case.subject_id}.nii.gz"
+            }
+            for case in self.valid_cases
+        ]
+
+    def create_dataset_json(self, path: PathLike = 'dataset.json', is_testset: bool = False) -> Dict:
+        """
+        Create dataset.json for nnUNet raw data archive.
+
+        Parameters
+        ----------
+        path: PathLike, default: nnU-Net raw data archive folder / task / dataset.json
+            path to save dataset info to. If None, will not output a file.
+        is_testset: bool, default: False
+            whether this conversation was a test set or a training set.
+
+        Returns
+        -------
+        dataset : dict
+            contents of dataset.json
+        """
+        if path is None:
+            return
+
+        dataset_path = self.scans_out_dir.parent / path
+        logging.info(f'Saving dataset info to {dataset_path}')
+
+        # use contents of archive->dataset_json as starting point
+        dataset_settings = self.settings.dataset_json
+        if 'name' not in dataset_settings:
+            dataset_settings['name'] = '_'.join(self.settings.task_name.split('_')[1:])
+
+        if is_testset:
+            dataset_settings["numTest"] = len(self.cases)
+            dataset_settings["test"] = self._prepare_dataset_paths()
+            if "numTraining" not in dataset_settings:
+                dataset_settings["numTraining"] = 0
+                dataset_settings["training"] = []
         else:
-            # grab e.g. Prostate_mpMRI_csPCa from Task101_Prostate_mpMRI_csPCa
-            return "_".join(self.task.split('_')[1:])
+            dataset_settings['numTraining'] = len(self.cases)
+            dataset_settings["training"] = self._prepare_dataset_paths()
+            if "numTest" not in dataset_settings:
+                dataset_settings["numTest"] = 0
+                dataset_settings["test"] = []
+
+        with open(dataset_path, 'w') as fp:
+            json.dump(dataset_settings, fp, indent=4)
+
+        return dataset_settings
+
+    @property
+    def valid_cases(self):
+        return [case for case in self.cases if case.is_valid]
