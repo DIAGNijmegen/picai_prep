@@ -104,6 +104,7 @@ mha2nnunet_schema = {
         },
         "options": {
             "type": "object",
+            "description": "Additional options for preprocessing",
             "additionalProperties": True
         }
     },
