@@ -101,6 +101,10 @@ mha2nnunet_schema = {
                 "modality",
                 "labels"
             ]
+        },
+        "options": {
+            "type": "object",
+            "additionalProperties": True
         }
     },
     "additionalProperties": False,
