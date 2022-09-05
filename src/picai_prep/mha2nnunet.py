@@ -68,7 +68,7 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
         self.process_and_write(scans_out_dir, annotations_out_dir)
 
     def initialize(self):
-        self.write_log(f'Importing {plural(len(self.scan_paths), "scans")}')
+        self.write_log(f'Importing {plural(len(self.scan_paths), "scan")}')
 
         missing_paths = []
         for scan_path in self.scan_paths:

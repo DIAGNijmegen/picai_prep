@@ -101,6 +101,11 @@ mha2nnunet_schema = {
                 "modality",
                 "labels"
             ]
+        },
+        "options": {
+            "type": "object",
+            "description": "Additional options for preprocessing",
+            "additionalProperties": True
         }
     },
     "additionalProperties": False,
