@@ -76,6 +76,9 @@ def run_mha2nnunet(args):
     )
     archive.convert()
 
+    if not args.no_dataset_json:
+        archive.create_dataset_json()
+
 
 def generate_mha2nnunet_settings(args):
     """Wrapper to generate mha2nnunet settings"""
@@ -148,7 +151,9 @@ dcm2mha_parser.add_argument("--scans_out_dirname", type=str, default="imagesTr",
                             help="Folder for scans (relative to root directory)")
 dcm2mha_parser.add_argument("--annotations_out_dirname", type=str, default="labelsTr",
                             help="Folder for annotations (relative to root directory)")
-dcm2mha_parser.add_argument("-v", "--verbose", default=1, required=False,
+dcm2mha_parser.add_argument("--no_dataset_json", action='store_true',
+                            help="Prevent generating the dataset.json for nnU-Net.")
+dcm2mha_parser.add_argument("-v", "--verbose", type=int, default=1,
                             help="Set verbosity: 0 (no logs), 1 (default), 2 (extended logging)")
 dcm2mha_parser.set_defaults(func=run_mha2nnunet)
 

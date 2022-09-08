@@ -255,6 +255,10 @@ class MHA2nnUNetConverter(Converter):
             return
 
         dataset_path = self.scans_out_dir.parent / path
+        if dataset_path.exists():
+            logging.info(f"Dataset info already exists at {dataset_path}, saving to ...-conflict.json")
+            dataset_path = dataset_path.with_stem(dataset_path.stem + "-conflict")
+
         logging.info(f'Saving dataset info to {dataset_path}')
 
         # use contents of archive->dataset_json as starting point

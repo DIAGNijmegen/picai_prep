@@ -16,6 +16,7 @@
 import json
 import os
 import shutil
+import subprocess
 from pathlib import Path
 from typing import List, Optional
 
@@ -66,6 +67,102 @@ def test_mha2nnunet(
     )
     archive.convert()
     archive.create_dataset_json()
+
+    # check dataset.json
+    path_out = task_dir / "dataset.json"
+    path_out_expected = output_expected_dir / task_name / "dataset.json"
+    with open(path_out) as fp1, open(path_out_expected) as fp2:
+        assert json.load(fp1) == json.load(fp2)
+
+    # compare output
+    for subject_id in subject_list:
+        print(f"Checking case {subject_id}...")
+        case_origin, case_direction = None, None
+
+        for modality in ["0000", "0001", "0002"]:
+            # construct paths to MHA images
+            path_out = task_dir / "imagesTr" / f"{subject_id}_{modality}.nii.gz"
+            path_out_expected = output_expected_dir / task_name / "imagesTr" / f"{subject_id}_{modality}.nii.gz"
+
+            # sanity check: check if outputs exist
+            assert path_out.exists(), f"Could not find output file at {path_out}!"
+            assert path_out_expected.exists(), f"Could not find output file at {path_out_expected}!"
+
+            # read images
+            img = sitk.ReadImage(str(path_out))
+            img_expected = sitk.ReadImage(str(path_out_expected))
+
+            # compare images
+            assert_allclose(sitk.GetArrayFromImage(img_expected), sitk.GetArrayFromImage(img))
+
+            # check origin and direction (nnUNet checks this too)
+            if case_origin is None:
+                case_origin = img.GetOrigin()
+            else:
+                assert case_origin == img.GetOrigin(), "Origin must match between sequences!"
+            if case_direction is None:
+                case_direction = img.GetDirection()
+            else:
+                assert case_direction == img.GetDirection(), "Direction must match between sequences!"
+
+        # check annotation
+        # construct paths
+        path_out = task_dir / "labelsTr" / f"{subject_id}.nii.gz"
+        path_out_expected = output_expected_dir / task_name / "labelsTr" / f"{subject_id}.nii.gz"
+
+        # sanity check: check if outputs exist
+        assert path_out.exists(), f"Could not find output file at {path_out}!"
+        assert path_out_expected.exists(), f"Could not find output file at {path_out_expected}!"
+
+        # read images
+        img = sitk.GetArrayFromImage(sitk.ReadImage(str(path_out)))
+        img_expected = sitk.GetArrayFromImage(sitk.ReadImage(str(path_out_expected)))
+
+        # compare images
+        assert_allclose(img_expected, img)
+
+
+def test_mha2nnunet_commandline(
+    input_dir: PathLike = "tests/output-expected/mha/ProstateX",
+    annotations_dir: PathLike = "tests/input/annotations/ProstateX",
+    output_dir: PathLike = "tests/output/nnUNet_raw_data",
+    output_expected_dir: PathLike = "tests/output-expected/nnUNet_raw_data",
+    settings_path: PathLike = "tests/output-expected/mha2nnunet_settings.json",
+    task_name: str = "Task100_test",
+    subject_list: Optional[List[str]] = None,
+):
+    """
+    Convert sample MHA archive to nnUNet raw data format
+    """
+    if subject_list is None:
+        subject_list = [
+            "ProstateX-0000_07-07-2011",
+            "ProstateX-0001_07-08-2011",
+        ]
+
+    # convert input paths to Path
+    input_dir = Path(input_dir)
+    annotations_dir = Path(annotations_dir)
+    output_dir = Path(output_dir)
+    output_expected_dir = Path(output_expected_dir)
+    task_dir = output_dir / task_name
+
+    # remove output folder (to prevent skipping the conversion)
+    if os.path.exists(task_dir):
+        shutil.rmtree(task_dir)
+
+    # test usage from command line
+    cmd = [
+        "python", "-m", "picai_prep", "mha2nnunet",
+        "--input", input_dir.as_posix(),
+        "--output", output_dir.as_posix(),
+        "--annotations", annotations_dir.as_posix(),
+        "--json", settings_path,
+        "--verbose", "2",
+    ]
+
+    # run command
+    subprocess.check_call(cmd)
 
     # check dataset.json
     path_out = task_dir / "dataset.json"
