@@ -28,6 +28,11 @@ Conversion from [`DICOM Archive`][dicom-archive] → [`MHA Archive`][mha-archive
         "SeriesDescription": ["t2_tse_tra"]
     },
 },
+"options": {
+	"num_threads": 4,
+	"verify_dicom_filenames": True,
+	"allow_duplicates": False
+},
 "archive": [
     {
         "patient_id": "ProstateX-0000",
@@ -35,6 +40,17 @@ Conversion from [`DICOM Archive`][dicom-archive] → [`MHA Archive`][mha-archive
         "path": "ProstateX-0000/07-07-2011-NA-MR prostaat kanker detectie WDSmc MCAPRODETW-05711/3.000000-t2tsesag-87368"
     },
 ]
+```
+
+This excerpt includes all available options:
+
+```
+num_threads: int, default: 4
+	number of threads to use for multiprocessing
+verify_dicom_filenames: bool, default: True
+	explicitly verify dicom filenames as a sanity check
+allow_duplicates: bool, default: False
+	when multiple series apply to a mapping, convert all
 ```
 
 Full configuration file for this excerpt, can be found [here](tests/output-expected/dcm2mha_settings.json). It can also be generated, as follows:
