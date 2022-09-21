@@ -21,7 +21,7 @@ import SimpleITK as sitk
 from picai_prep.converter import Case
 from picai_prep.data_utils import PathLike, atomic_image_write
 from picai_prep.dcm2mha import (Dicom2MHACase, Dicom2MHAConverter,
-                                read_image_series)
+                                DICOMImageReader)
 from picai_prep.errors import DCESeriesNotFoundError
 
 
@@ -108,7 +108,7 @@ class Dicom2DCECase(Dicom2MHACase):
                 self.write_log(f"[{i+1}/{len(times)}]: Reading scan at {timepoint}s from {ser_dir}")
 
             # Collect T1 image of ordered time points
-            image = read_image_series(ser_dir)
+            image = DICOMImageReader(ser_dir).image
             dce_scans.append(image)
 
         joined_images: sitk.Image = sitk.JoinSeries(dce_scans)

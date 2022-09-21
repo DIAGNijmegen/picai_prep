@@ -18,10 +18,11 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import pytest
 import SimpleITK as sitk
 from numpy.testing import assert_allclose
 from picai_prep.dcm2mha import (Dicom2MHACase, Dicom2MHAConverter,
-                                Dicom2MHASettings)
+                                Dicom2MHASettings, DICOMImageReader)
 
 
 def test_dcm2mha(
@@ -232,3 +233,45 @@ def test_value_match_multiple_keys(
     # check if duplicates were resolved
     matched_series = [serie for serie in case.valid_series if "test" in serie.mappings]
     assert len(matched_series) == 3, 'Should find three diffusion scans!'
+
+
+@pytest.mark.parametrize("input_dir", [
+    "tests/input/dcm/ProstateX/ProstateX-0000/07-07-2011/4.000000-t2tsetra-00702",
+    "tests/input/dcm/ProstateX/ProstateX-0000/07-07-2011/7.000000-ep2ddifftraDYNDISTADC-48780",
+    "tests/input/dcm/ProstateX/ProstateX-0001/07-08-2011/11.000000-tfl3d PD reftra1.5x1.5t3-77124",
+])
+def test_image_reader(input_dir: str):
+    """
+    Verify consistency of reading SimpleITK or pydicom.
+    """
+
+    reader = DICOMImageReader(path=input_dir)
+    image_sitk = reader._read_image_sitk()
+    image_pydicom = reader._read_image_pydicom()
+
+    # compare voxel values
+    assert_allclose(sitk.GetArrayFromImage(image_sitk), sitk.GetArrayFromImage(image_pydicom))
+
+    # compare physical metadata
+    assert_allclose(image_sitk.GetSpacing(), image_pydicom.GetSpacing(), atol=1e-6)
+    assert_allclose(image_sitk.GetOrigin(), image_pydicom.GetOrigin(), atol=1e-6)
+    assert_allclose(image_sitk.GetDirection(), image_pydicom.GetDirection(), atol=1e-6)
+
+    # compare metadata
+    metadata_sitk = {key: image_sitk.GetMetaData(key).strip() for key in image_sitk.GetMetaDataKeys()}
+    metadata_pydicom = {key: image_pydicom.GetMetaData(key).strip() for key in image_pydicom.GetMetaDataKeys()}
+    keys = set(metadata_pydicom.keys()) & set(metadata_sitk.keys())
+    assert len(keys) > 1, 'No metadata found!'
+    assert {k: metadata_sitk[k] for k in keys} == {k: metadata_pydicom[k] for k in keys}
+
+
+@pytest.mark.xfail
+@pytest.mark.parametrize("input_dir", [
+    "tests/input/dcm/ProstateX/ProstateX-0001/07-08-2011/1.000000-t2localizer-75055",
+])
+def test_image_reader_invalid_sequence(input_dir: str):
+    test_image_reader(input_dir)
+
+
+if __name__ == "__main__":
+    test_image_reader("tests/input/dcm/ProstateX/ProstateX-0000/07-07-2011/4.000000-t2tsetra-00702")
