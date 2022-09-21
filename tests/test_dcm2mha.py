@@ -273,5 +273,36 @@ def test_image_reader_invalid_sequence(input_dir: str):
     test_image_reader(input_dir)
 
 
-if __name__ == "__main__":
-    test_image_reader("tests/input/dcm/ProstateX/ProstateX-0000/07-07-2011/4.000000-t2tsetra-00702")
+@pytest.mark.parametrize("input_dir", [
+    "tests/input/dcm/ProstateX-dicom-zip/ProstateX-0001/07-08-2011/8.000000-ep2ddifftraDYNDISTMIXADC-33954",
+    "tests/input/dcm/ProstateX-dicom-zip/ProstateX-0001/07-08-2011/11.000000-tfl3d PD reftra1.5x1.5t3-77124",
+])
+def test_image_reader_dicom_zip(input_dir: str):
+    reader1 = DICOMImageReader(path=input_dir)
+    reader2 = DICOMImageReader(path=input_dir)
+
+    # read image, then metadata
+    image1 = reader1.image
+    metadata1 = reader1.metadata
+
+    # read metadata, then image
+    metadata2 = reader2.metadata
+    image2 = reader2.image
+
+    # compare voxel values
+    assert_allclose(sitk.GetArrayFromImage(image1), sitk.GetArrayFromImage(image2))
+
+    # compare metadata
+    keys = set(metadata1.keys()) & set(metadata2.keys())
+    assert len(keys) > 1, 'No metadata found!'
+    assert {k: metadata1[k].strip() for k in keys} == {k: metadata2[k].strip() for k in keys}
+
+
+@pytest.mark.xfail
+@pytest.mark.parametrize("input_dir", [
+    "tests/input/dcm/ProstateX-dicom-zip/ProstateX-0001/07-08-2011/1.000000-t2localizer-75055",
+    "tests/input/dcm/ProstateX-dicom-zip/ProstateX-0001/07-08-2011/corrupt-sequence",
+])
+def test_image_reader_dicom_zip_invalid_sequence(input_dir: str):
+    test_image_reader_dicom_zip(input_dir)
+
