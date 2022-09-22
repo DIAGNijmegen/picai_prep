@@ -166,7 +166,7 @@ class MHA2nnUNetConverter(Converter):
             dirname to store annotation output, will be a direct descendant of `output_dir`.
         mha2nnunet_settings: Union[PathLike, Dict]
             object with cases, nnUNet-shaped dataset.json and optional parameters.
-            May be a dictionary containing mappings, dataset.json, and optionally options, 
+            May be a dictionary containing mappings, dataset.json, and optionally options,
             or a path to a JSON file with these elements.
             - dataset_json: see nnU-Net's dataset conversion on details for the dataset.json file:
                 https://github.com/MIC-DKFZ/nnUNet/blob/master/documentation/dataset_conversion.md

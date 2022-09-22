@@ -258,8 +258,8 @@ def test_image_reader(input_dir: str):
     assert_allclose(image_sitk.GetDirection(), image_pydicom.GetDirection(), atol=1e-6)
 
     # compare metadata
-    metadata_sitk = {key: image_sitk.GetMetaData(key).strip() for key in image_sitk.GetMetaDataKeys()}
-    metadata_pydicom = {key: image_pydicom.GetMetaData(key).strip() for key in image_pydicom.GetMetaDataKeys()}
+    metadata_sitk = {key: image_sitk.GetMetaData(key) for key in image_sitk.GetMetaDataKeys()}
+    metadata_pydicom = {key: image_pydicom.GetMetaData(key) for key in image_pydicom.GetMetaDataKeys()}
     keys = set(metadata_pydicom.keys()) & set(metadata_sitk.keys())
     assert len(keys) > 1, 'No metadata found!'
     assert {k: metadata_sitk[k] for k in keys} == {k: metadata_pydicom[k] for k in keys}
@@ -295,7 +295,7 @@ def test_image_reader_dicom_zip(input_dir: str):
     # compare metadata
     keys = set(metadata1.keys()) & set(metadata2.keys())
     assert len(keys) > 1, 'No metadata found!'
-    assert {k: metadata1[k].strip() for k in keys} == {k: metadata2[k].strip() for k in keys}
+    assert {k: metadata1[k] for k in keys} == {k: metadata2[k] for k in keys}
 
 
 @pytest.mark.xfail

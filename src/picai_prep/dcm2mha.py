@@ -11,6 +11,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+import io
 import json
 import logging
 import os
@@ -561,7 +562,7 @@ class DICOMImageReader:
         reader.ReadImageInformation()
 
         # set metadata
-        metadata = {key: reader.GetMetaData(key) for key in reader.GetMetaDataKeys()}
+        metadata = {key: reader.GetMetaData(key).strip() for key in reader.GetMetaDataKeys()}
         for key, value in metadata.items():
             if len(value) > 0:
                 image.SetMetaData(key, value)
@@ -633,7 +634,7 @@ class DICOMImageReader:
 
     def _read_metadata(self) -> Dict[str, str]:
         if self._image is not None:
-            return {key: self.image.GetMetaData(key) for key in self.image.GetMetaDataKeys()}
+            return {key: self.image.GetMetaData(key).strip() for key in self.image.GetMetaDataKeys()}
 
         if self.path.name == "dicom.zip":
             # read metadata from dicom.zip with pydicom
@@ -641,9 +642,8 @@ class DICOMImageReader:
                 if not zf.namelist():
                     raise RuntimeError('dicom.zip is empty')
 
-                with zf.open(zf.namelist()[-1]) as fp:
-                    ds = pydicom.dcmread(fp)
-                    return self._collect_metadata_pydicom(ds)
+                ds = pydicom.dcmread(io.BytesIO(zf.read(zf.namelist()[-1])))
+                return self._collect_metadata_pydicom(ds)
 
         # extract metadata from first/last(?) DICOM slice
         dicom_slice_path = self.dicom_slice_paths[0]
@@ -667,10 +667,10 @@ class DICOMImageReader:
         metadata = {}
         for key in ref.GetMetaDataKeys():
             # collect all available metadata (with DICOM tags, e.g. 0010|1010, as keys)
-            metadata[key] = ref.GetMetaData(key)
+            metadata[key] = ref.GetMetaData(key).strip()
         for name, key in dicom_tags.items():
             # collect metadata with DICOM names, e.g. patientsage, as keys)
-            metadata[name] = ref.GetMetaData(key) if ref.HasMetaDataKey(key) else ''
+            metadata[name] = ref.GetMetaData(key).strip() if ref.HasMetaDataKey(key) else ''
 
         metadata["spacing"] = ref.GetSpacing()
         return metadata

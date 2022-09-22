@@ -26,7 +26,6 @@ def plural(num: int, word: str):
     return f"{num} {word}{'' if num == 1 else 's'}"
 
 
-
 def make_sitk_readers() -> Tuple[sitk.ImageFileReader, sitk.ImageSeriesReader]:
     """Initialise SimpleITK series and file readers"""
     series_reader = sitk.ImageSeriesReader()
