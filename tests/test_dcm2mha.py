@@ -305,4 +305,3 @@ def test_image_reader_dicom_zip(input_dir: str):
 ])
 def test_image_reader_dicom_zip_invalid_sequence(input_dir: str):
     test_image_reader_dicom_zip(input_dir)
-
