@@ -11,16 +11,20 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+import io
 import json
 import logging
 import os
 import re
+import tempfile
+import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Sequence, Union
+from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import jsonschema
 import numpy as np
+import pydicom
 import pydicom.errors
 import SimpleITK as sitk
 
@@ -30,8 +34,7 @@ from picai_prep.errors import (ArchiveItemPathNotFoundError,
                                CriticalErrorInSiblingError,
                                MissingDICOMFilesError, NoMappingsApplyError,
                                UnreadableDICOMError)
-from picai_prep.utilities import (dcm2mha_schema, dicom_tags,
-                                  get_pydicom_value, make_sitk_readers, plural)
+from picai_prep.utilities import dcm2mha_schema, dicom_tags, plural
 
 Metadata = Dict[str, str]
 Mapping = Dict[str, List[str]]
@@ -80,60 +83,15 @@ class Series:
         if not self.path.is_dir():
             raise NotADirectoryError(self.path)
 
-    def verify_dicom_filenames(self, filenames: List[PathLike]) -> bool:
-        """Verify DICOM filenames have increasing numbers, with no gaps"""
-        vdcms = [d.rsplit('.', 1)[0] for d in filenames]
-        vdcms = [int(''.join(c for c in d if c.isdigit())) for d in vdcms]
-        missing_slices = False
-        for num in range(min(vdcms), max(vdcms) + 1):
-            if num not in vdcms:
-                missing_slices = True
-                break
-        if missing_slices:
-            raise MissingDICOMFilesError(self.path)
-        return True
-
     def extract_metadata(self, verify_dicom_filenames: bool = True) -> None:
         """
         Verify DICOM slices and extract metadata from the last DICOM slice
         """
-        file_reader, series_reader = make_sitk_readers()
-        self.filenames = [os.path.basename(dcm) for dcm in series_reader.GetGDCMSeriesFileNames(str(self.path))]
-
-        # verify DICOM files are found
-        if len(self.filenames) == 0:
-            raise MissingDICOMFilesError(self.path)
-
-        if verify_dicom_filenames:
-            # verify DICOM filenames have increasing numbers, with no gaps
-            self.verify_dicom_filenames(self.filenames)
-
-        # extract metadata from last DICOM slice
-        dicom_slice_path = self.path / self.filenames[-1]
-
-        try:
-            file_reader.SetFileName(str(dicom_slice_path))
-            file_reader.ReadImageInformation()
-            self.spacing = file_reader.GetSpacing()
-
-            for key in file_reader.GetMetaDataKeys():
-                # collect all available metadata (with DICOM tags, e.g. 0010|1010, as keys)
-                self.metadata[key] = file_reader.GetMetaData(key)
-            for name, key in dicom_tags.items():
-                # collect metadata with DICOM names, e.g. patientsage, as keys)
-                self.metadata[name] = file_reader.GetMetaData(key) if file_reader.HasMetaDataKey(key) else ''
-        except Exception as e:
-            self.write_log(f"Reading with SimpleITK failed for {self.path} with error: {e}. Attempting with pydicom.")
-            try:
-                with pydicom.dcmread(dicom_slice_path) as data:
-                    self.spacing = data.PixelSpacing
-                    for name, key in dicom_tags.items():
-                        self.metadata[name] = get_pydicom_value(data, key)
-            except pydicom.errors.InvalidDicomError:
-                e = UnreadableDICOMError(self.path)
-                self.error = e
-                logging.error(str(e))
-
+        # try:
+        reader = DICOMImageReader(self.path, verify_dicom_filenames=verify_dicom_filenames)
+        self.metadata = reader.metadata
+        self.spacing = self.metadata["spacing"]
+        self.filenames = reader.dicom_slice_paths
         self.write_log('Extracted metadata')
 
     @staticmethod
@@ -334,7 +292,7 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
                     skips.append(i)
 
                 try:
-                    image = read_image_series(serie.path)
+                    image = DICOMImageReader(serie.path).image
                 except Exception as e:
                     serie.write_log(
                         f'Skipped "{mapping}", reading DICOM sequence failed, maybe corrupt data? Error: {e}')
@@ -497,22 +455,141 @@ class Dicom2MHAConverter(Converter):
         )
 
 
-def read_image_series(image_series_path: PathLike) -> sitk.Image:
-    """Read folder containing DICOM slices and return a single SimpleITK image."""
-    file_reader, series_reader = make_sitk_readers()
-    dicom_slice_paths = series_reader.GetGDCMSeriesFileNames(str(image_series_path))
+class DICOMImageReader:
+    """
+    Read folder containing DICOM slices (possibly enclosed in a 'dicom.zip' file).
+    If both DICOM slices and a 'dicom.zip' file are present, the DICOM slices are used.
 
-    try:
-        series_reader.SetFileNames(dicom_slice_paths)
-        image: sitk.Image = series_reader.Execute()
+    Parameters
+    ----------
+    image_series_path: PathLike
+        path to the folder containing the DICOM slices. The folder should contain the DICOM slices,
+        or a zip file named "dicom.zip" containing the DICOM slices.
 
-        file_reader.SetFileName(dicom_slice_paths[-1])
-        dicom_slice: sitk.Image = file_reader.Execute()
-        for key in dicom_slice.GetMetaDataKeys():
-            if len(dicom_slice.GetMetaData(key)) > 0:
-                image.SetMetaData(key, dicom_slice.GetMetaData(key))
-    except RuntimeError:
-        files = [pydicom.dcmread(dcm) for dcm in dicom_slice_paths]
+    Usage
+    -----
+    >>> image = DICOMImageReader('path/to/dicom/folder').image
+
+    or
+
+    >>> reader = DICOMImageReader('path/to/dicom/folder')
+    >>> image = reader.image
+    >>> metadata = reader.metadata
+    """
+
+    def __init__(self, path: PathLike, verify_dicom_filenames: bool = True):
+        self.path = Path(path)
+        self.verify_dicom_filenames = verify_dicom_filenames
+        self._image = None
+        self._metadata = None
+        self.dicom_slice_paths: Optional[List[str]] = None
+
+        self.series_reader = sitk.ImageSeriesReader()
+        try:
+            self._update_dicom_list()
+        except MissingDICOMFilesError:
+            self.dicom_slice_paths = None
+            if (self.path / "dicom.zip").exists():
+                self.path = self.path / "dicom.zip"
+            else:
+                raise MissingDICOMFilesError(f'No DICOM slices found in {self.path}')
+
+    @property
+    def image(self):
+        if self._image is None:
+            self._image = self._read_image()
+        return self._image
+
+    @property
+    def metadata(self):
+        if self._metadata is None:
+            self._metadata = self._read_metadata()
+        return self._metadata
+
+    def _read_image(self, path: Optional[PathLike] = None) -> sitk.Image:
+        if path is None:
+            path = self.path
+        path = Path(path)
+
+        if path.name == "dicom.zip":
+            return self._read_image_dicom_zip(path=path)
+        try:
+            return self._read_image_sitk(path=path)
+        except RuntimeError:
+            return self._read_image_pydicom(path=path)
+
+    def _update_dicom_list(self, path: Optional[PathLike] = None):
+        if path is None:
+            path = self.path
+
+        self.dicom_slice_paths = self.series_reader.GetGDCMSeriesFileNames(str(path))
+
+        # verify DICOM files are found
+        if len(self.dicom_slice_paths) == 0:
+            raise MissingDICOMFilesError(self.path)
+
+        if self.verify_dicom_filenames:
+            # verify DICOM filenames have increasing numbers, with no gaps
+            filenames = [os.path.basename(dcm) for dcm in self.dicom_slice_paths]
+            self._verify_dicom_filenames(filenames)
+
+    def _read_image_sitk(self, path: Optional[PathLike] = None) -> sitk.Image:
+        """
+        Read image using SimpleITK.
+
+        Parameters
+        ----------
+        path: PathLike
+            path to the folder containing the DICOM slices. The folder should contain the DICOM slices,
+            or a zip file named "dicom.zip" containing the DICOM slices.
+            default: self.path
+
+        Returns
+        -------
+        image: SimpleITK.Image
+        """
+        if path is not None:
+            self.path = path
+            self._update_dicom_list(path=path)
+
+        # read DICOM sequence
+        self.series_reader.SetFileNames(self.dicom_slice_paths)
+        image: sitk.Image = self.series_reader.Execute()
+
+        # read metadata from the last DICOM slice
+        reader = sitk.ImageFileReader()
+        reader.SetFileName(self.dicom_slice_paths[0])
+        reader.LoadPrivateTagsOn()
+        reader.ReadImageInformation()
+
+        # set metadata
+        metadata = {key: reader.GetMetaData(key).strip() for key in reader.GetMetaDataKeys()}
+        for key, value in metadata.items():
+            if len(value) > 0:
+                image.SetMetaData(key, value)
+
+        return image
+
+    def _read_image_pydicom(self, path: Optional[PathLike] = None) -> sitk.Image:
+        """
+        Read image using pydicom. Warning: experimental! This function has limited capabilities.
+
+        Parameters
+        ----------
+        path: PathLike
+            path to the folder containing the DICOM slices. The folder should contain the DICOM slices,
+            or a zip file named "dicom.zip" containing the DICOM slices.
+            default: self.path
+
+        Returns
+        -------
+        image: SimpleITK.Image
+        """
+        if path is not None:
+            self.path = path
+            self._update_dicom_list(path=path)
+
+        files = [pydicom.dcmread(dcm) for dcm in self.dicom_slice_paths]
 
         # skip files with no SliceLocation (eg. scout views)
         slices = filter(lambda a: hasattr(a, 'SliceLocation'), files)
@@ -525,11 +602,125 @@ def read_image_series(image_series_path: PathLike) -> sitk.Image:
 
         # convert to SimpleITK
         image: sitk.Image = sitk.GetImageFromArray(image)
-        image.SetSpacing(list(slices[0].PixelSpacing) + [slices[0].SliceThickness])
+        ref = slices[0]  # corresponds to the same slice as with SimpleITK
+        image.SetSpacing(list(ref.PixelSpacing) + [ref.SliceThickness])
+        image.SetOrigin(ref.ImagePositionPatient)
+        image.SetDirection(self.get_orientation_tuple_sitk(ref))
 
-        for key in dicom_tags.values():
-            value = get_pydicom_value(files[0], key)
+        for key in ref.keys():
+            # collect all available metadata (with DICOM tags, e.g. 0010|1010, as keys)
+            value = self.get_pydicom_value(ref, key)
             if value is not None:
+                key = str(key).replace(", ", "|").replace("(", "").replace(")", "")
                 image.SetMetaData(key, value)
 
-    return image
+        return image
+
+    def _read_image_dicom_zip(self, path: PathLike) -> sitk.Image:
+        """
+        Read image from dicom.zip file using SimpleITK.
+        """
+        with zipfile.ZipFile(path) as zf:
+            if not zf.namelist():
+                raise RuntimeError('dicom.zip is empty')
+
+            with tempfile.TemporaryDirectory() as tempdir:
+                zf.extractall(tempdir)
+                return self._read_image(tempdir)
+
+    def _read_metadata(self) -> Dict[str, str]:
+        if self._image is not None:
+            return {key: self.image.GetMetaData(key).strip() for key in self.image.GetMetaDataKeys()}
+
+        if self.path.name == "dicom.zip":
+            # read metadata from dicom.zip with pydicom
+            with zipfile.ZipFile(self.path) as zf:
+                if not zf.namelist():
+                    raise RuntimeError('dicom.zip is empty')
+
+                ds = pydicom.dcmread(io.BytesIO(zf.read(zf.namelist()[-1])))
+                return self._collect_metadata_pydicom(ds)
+
+        # extract metadata from first/last(?) DICOM slice
+        dicom_slice_path = self.dicom_slice_paths[0]
+        return self._read_metadata_from_file(dicom_slice_path)
+
+    def _read_metadata_from_file(self, path: PathLike) -> Dict[str, str]:
+        try:
+            reader = sitk.ImageFileReader()
+            reader.SetFileName(str(path))
+            reader.LoadPrivateTagsOn()
+            reader.ReadImageInformation()
+            return self._collect_metadata_sitk(reader)
+        except Exception:
+            try:
+                with pydicom.dcmread(path, stop_before_pixels=True) as ds:
+                    return self._collect_metadata_pydicom(ds)
+            except pydicom.errors.InvalidDicomError:
+                raise UnreadableDICOMError(path)
+
+    def _collect_metadata_sitk(self, ref: Union[sitk.Image, sitk.ImageFileReader]) -> Dict[str, str]:
+        metadata = {}
+        for key in ref.GetMetaDataKeys():
+            # collect all available metadata (with DICOM tags, e.g. 0010|1010, as keys)
+            metadata[key] = ref.GetMetaData(key).strip()
+        for name, key in dicom_tags.items():
+            # collect metadata with DICOM names, e.g. patientsage, as keys)
+            metadata[name] = ref.GetMetaData(key).strip() if ref.HasMetaDataKey(key) else ''
+
+        metadata["spacing"] = ref.GetSpacing()
+        return metadata
+
+    def _collect_metadata_pydicom(self, ds: "pydicom.dataset.Dataset") -> Dict[str, str]:
+        metadata = {}
+        for key in ds.keys():
+            # collect all available metadata (with DICOM tags, e.g. 0010|1010, as keys)
+            value = self.get_pydicom_value(ds, key)
+            if value is not None:
+                key = str(key).replace(", ", "|").replace("(", "").replace(")", "")
+                metadata[key] = value
+        for key in dicom_tags.values():
+            # collect metadata with DICOM names, e.g. patientsage, as keys)
+            value = self.get_pydicom_value(ds, key)
+            metadata[key] = value if value is not None else ''
+
+        metadata["spacing"] = ds.PixelSpacing
+        return metadata
+
+    @staticmethod
+    def get_pydicom_value(ds: pydicom.dataset.Dataset, key: "Union[pydicom.tag.BaseTag, str]") -> str:
+        if isinstance(key, str):
+            key = '0x' + key.replace('|', '')
+        if key in ds:
+            result = ds[key]
+            if result.is_empty:
+                return ''
+            result = result.value
+            if isinstance(result, (list, pydicom.multival.MultiValue)):
+                result = "\\".join([str(v) for v in result])
+            return str(result)
+        return ''
+
+    @staticmethod
+    def get_orientation_matrix(ds: pydicom.FileDataset) -> np.ndarray:
+        x, y = np.array(list(map(float, ds.ImageOrientationPatient))).reshape(2, 3)
+        return np.stack([x, y, np.cross(x, y)])
+
+    def get_orientation_tuple_sitk(self, ds: pydicom.FileDataset) -> Tuple:
+        return tuple(self.get_orientation_matrix(ds).transpose().flatten())
+
+    def _verify_dicom_filenames(self, filenames: List[PathLike]) -> bool:
+        """Verify DICOM filenames have increasing numbers, with no gaps"""
+        vdcms = [d.rsplit('.', 1)[0] for d in filenames]
+        vdcms = [int(''.join(c for c in d if c.isdigit())) for d in vdcms]
+        missing_slices = False
+        for num in range(min(vdcms), max(vdcms) + 1):
+            if num not in vdcms:
+                missing_slices = True
+                break
+        if missing_slices:
+            raise MissingDICOMFilesError(self.path)
+        return True
+
+    def __repr__(self):
+        return f'DICOMImageReader({self.path})'

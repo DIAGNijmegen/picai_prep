@@ -15,7 +15,6 @@
 
 from typing import Tuple
 
-import pydicom
 import SimpleITK as sitk
 
 from picai_prep.resources.dcm2mha_schema import dcm2mha_schema
@@ -25,14 +24,6 @@ from picai_prep.resources.mha2nnunet_schema import mha2nnunet_schema
 
 def plural(num: int, word: str):
     return f"{num} {word}{'' if num == 1 else 's'}"
-
-
-def get_pydicom_value(data: pydicom.dataset.Dataset, key: str):
-    key = '0x' + key.replace('|', '')
-    if key in data:
-        result = data[key]
-        return result.value if not result.is_empty else None
-    return None
 
 
 def make_sitk_readers() -> Tuple[sitk.ImageFileReader, sitk.ImageSeriesReader]:
