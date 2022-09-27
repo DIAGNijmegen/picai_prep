@@ -612,11 +612,6 @@ class DICOMImageReader:
             if value is not None:
                 key = str(key).replace(", ", "|").replace("(", "").replace(")", "")
                 image.SetMetaData(key, value)
-        for key in dicom_tags.values():
-            # collect metadata with DICOM names, e.g. patientsage, as keys)
-            value = self.get_pydicom_value(ref, key)
-            if value is not None:
-                image.SetMetaData(key, value)
 
         return image
 
