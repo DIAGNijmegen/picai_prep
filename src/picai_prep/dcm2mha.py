@@ -458,6 +458,7 @@ class Dicom2MHAConverter(Converter):
 class DICOMImageReader:
     """
     Read folder containing DICOM slices (possibly enclosed in a 'dicom.zip' file).
+    If both DICOM slices and a 'dicom.zip' file are present, the DICOM slices are used.
 
     Parameters
     ----------
