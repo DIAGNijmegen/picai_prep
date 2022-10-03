@@ -492,7 +492,7 @@ class DICOMImageReader:
                     for name in zf.namelist()
                     if name.endswith(".dcm")
                 ]
-            self._verify_dicom_filenames(self.dicom_slice_paths)
+            self._verify_dicom_filenames()
         else:
             self._update_dicom_list()
 
@@ -532,8 +532,7 @@ class DICOMImageReader:
 
         if self.verify_dicom_filenames:
             # verify DICOM filenames have increasing numbers, with no gaps
-            filenames = [os.path.basename(dcm) for dcm in self.dicom_slice_paths]
-            self._verify_dicom_filenames(filenames)
+            self._verify_dicom_filenames()
 
     def _read_image_sitk(self, path: Optional[PathLike] = None) -> sitk.Image:
         """
@@ -712,8 +711,11 @@ class DICOMImageReader:
     def get_orientation_tuple_sitk(self, ds: pydicom.FileDataset) -> Tuple:
         return tuple(self.get_orientation_matrix(ds).transpose().flatten())
 
-    def _verify_dicom_filenames(self, filenames: List[PathLike]) -> bool:
+    def _verify_dicom_filenames(self, filenames: Optional[List[PathLike]] = None) -> bool:
         """Verify DICOM filenames have increasing numbers, with no gaps"""
+        if filenames is None:
+            filenames = [os.path.basename(dcm) for dcm in self.dicom_slice_paths]
+
         vdcms = [d.rsplit('.', 1)[0] for d in filenames]
         vdcms = [int(''.join(c for c in d if c.isdigit())) for d in vdcms]
         missing_slices = False
