@@ -485,8 +485,14 @@ class DICOMImageReader:
 
         self.series_reader = sitk.ImageSeriesReader()
         if (self.path / "dicom.zip").exists():
-            self.dicom_slice_paths = None
             self.path = self.path / "dicom.zip"
+            with zipfile.ZipFile(self.path, "r") as zf:
+                self.dicom_slice_paths = [
+                    self.path / name
+                    for name in zf.namelist()
+                    if name.endswith(".dcm")
+                ]
+            self._verify_dicom_filenames(self.dicom_slice_paths)
         else:
             self._update_dicom_list()
 
