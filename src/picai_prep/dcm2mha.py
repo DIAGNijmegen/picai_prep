@@ -458,7 +458,7 @@ class Dicom2MHAConverter(Converter):
 class DICOMImageReader:
     """
     Read folder containing DICOM slices (possibly enclosed in a 'dicom.zip' file).
-    If both DICOM slices and a 'dicom.zip' file are present, the DICOM slices are used.
+    If both DICOM slices and a 'dicom.zip' file are present, the dicom.zip used.
 
     Parameters
     ----------
@@ -485,14 +485,11 @@ class DICOMImageReader:
         self.dicom_slice_paths: Optional[List[str]] = None
 
         self.series_reader = sitk.ImageSeriesReader()
-        try:
-            self._update_dicom_list()
-        except MissingDICOMFilesError:
+        if (self.path / "dicom.zip").exists():
             self.dicom_slice_paths = None
-            if (self.path / "dicom.zip").exists():
-                self.path = self.path / "dicom.zip"
-            else:
-                raise MissingDICOMFilesError(f'No DICOM slices found in {self.path}')
+            self.path = self.path / "dicom.zip"
+        else:
+            self._update_dicom_list()
 
     @property
     def image(self):
