@@ -635,8 +635,9 @@ class DICOMImageReader:
                 if not zf.namelist():
                     raise RuntimeError('dicom.zip is empty')
 
-                ds = pydicom.dcmread(io.BytesIO(zf.read(zf.namelist()[-1])))
-                return self._collect_metadata_pydicom(ds)
+                with tempfile.TemporaryDirectory() as tempdir:
+                    targetpath = zf.extract(member=zf.namelist()[-1], path=tempdir)
+                    return self._read_metadata_from_file(targetpath)
 
         # extract metadata from first/last(?) DICOM slice
         dicom_slice_path = self.dicom_slice_paths[0]
