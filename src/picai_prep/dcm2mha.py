@@ -626,7 +626,7 @@ class DICOMImageReader:
 
     def _read_metadata(self) -> Dict[str, str]:
         if self._image is not None:
-            return {key: self.image.GetMetaData(key).strip() for key in self.image.GetMetaDataKeys()}
+            return self._collect_metadata_sitk(self._image)
 
         if self.path.name == "dicom.zip":
             # read metadata from dicom.zip with pydicom
