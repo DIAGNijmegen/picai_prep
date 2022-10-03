@@ -70,7 +70,7 @@ class Series:
 
     # image metadata
     filenames: Optional[List[str]] = None
-    spacing: Optional[Sequence[float]] = None
+    spacing_inplane: Optional[Sequence[float]] = None
     metadata: Optional[Metadata] = field(default_factory=dict)
 
     mappings: List[str] = field(default_factory=list)
@@ -90,7 +90,7 @@ class Series:
         # try:
         reader = DICOMImageReader(self.path, verify_dicom_filenames=verify_dicom_filenames)
         self.metadata = reader.metadata
-        self.spacing = self.metadata["spacing"]
+        self.spacing_inplane = self.metadata["spacing_inplane"]
         self.filenames = reader.dicom_slice_paths
         self.write_log('Extracted metadata')
 
@@ -247,7 +247,7 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
         # define tiebreakers, which should have: name, value_func, pick_largest
         tiebreakers = [
             ('slice count', lambda a: len(a.filenames), True),
-            ('image resolution', lambda a: np.prod(a.spacing), False),
+            ('image resolution', lambda a: np.prod(a.spacing_inplane), False),
             ('filename', lambda a: str(a.path), False),
         ]
 
@@ -668,7 +668,7 @@ class DICOMImageReader:
             # collect metadata with DICOM names, e.g. patientsage, as keys)
             metadata[name] = ref.GetMetaData(key).strip() if ref.HasMetaDataKey(key) else ''
 
-        metadata["spacing"] = ref.GetSpacing()
+        metadata["spacing_inplane"] = ref.GetSpacing()[0:2]
         return metadata
 
     def _collect_metadata_pydicom(self, ds: "pydicom.dataset.Dataset") -> Dict[str, str]:
@@ -684,7 +684,7 @@ class DICOMImageReader:
             value = self.get_pydicom_value(ds, key)
             metadata[key] = value if value is not None else ''
 
-        metadata["spacing"] = ds.PixelSpacing
+        metadata["spacing_inplane"] = ds.PixelSpacing[0:2]
         return metadata
 
     @staticmethod
