@@ -11,7 +11,6 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-import io
 import json
 import logging
 import os
@@ -70,7 +69,7 @@ class Series:
 
     # image metadata
     filenames: Optional[List[str]] = None
-    spacing: Optional[Sequence[float]] = None
+    spacing_inplane: Optional[Sequence[float]] = None
     metadata: Optional[Metadata] = field(default_factory=dict)
 
     mappings: List[str] = field(default_factory=list)
@@ -90,7 +89,7 @@ class Series:
         # try:
         reader = DICOMImageReader(self.path, verify_dicom_filenames=verify_dicom_filenames)
         self.metadata = reader.metadata
-        self.spacing = self.metadata["spacing"]
+        self.spacing_inplane = self.metadata["spacing_inplane"]
         self.filenames = reader.dicom_slice_paths
         self.write_log('Extracted metadata')
 
@@ -247,7 +246,7 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
         # define tiebreakers, which should have: name, value_func, pick_largest
         tiebreakers = [
             ('slice count', lambda a: len(a.filenames), True),
-            ('image resolution', lambda a: np.prod(a.spacing), False),
+            ('image resolution', lambda a: np.prod(a.spacing_inplane), False),
             ('filename', lambda a: str(a.path), False),
         ]
 
@@ -458,7 +457,7 @@ class Dicom2MHAConverter(Converter):
 class DICOMImageReader:
     """
     Read folder containing DICOM slices (possibly enclosed in a 'dicom.zip' file).
-    If both DICOM slices and a 'dicom.zip' file are present, the DICOM slices are used.
+    If both DICOM slices and a 'dicom.zip' file are present, the dicom.zip used.
 
     Parameters
     ----------
@@ -485,14 +484,17 @@ class DICOMImageReader:
         self.dicom_slice_paths: Optional[List[str]] = None
 
         self.series_reader = sitk.ImageSeriesReader()
-        try:
+        if (self.path / "dicom.zip").exists():
+            self.path = self.path / "dicom.zip"
+            with zipfile.ZipFile(self.path, "r") as zf:
+                self.dicom_slice_paths = [
+                    self.path / name
+                    for name in zf.namelist()
+                    if name.endswith(".dcm")
+                ]
+            self._verify_dicom_filenames()
+        else:
             self._update_dicom_list()
-        except MissingDICOMFilesError:
-            self.dicom_slice_paths = None
-            if (self.path / "dicom.zip").exists():
-                self.path = self.path / "dicom.zip"
-            else:
-                raise MissingDICOMFilesError(f'No DICOM slices found in {self.path}')
 
     @property
     def image(self):
@@ -530,8 +532,7 @@ class DICOMImageReader:
 
         if self.verify_dicom_filenames:
             # verify DICOM filenames have increasing numbers, with no gaps
-            filenames = [os.path.basename(dcm) for dcm in self.dicom_slice_paths]
-            self._verify_dicom_filenames(filenames)
+            self._verify_dicom_filenames()
 
     def _read_image_sitk(self, path: Optional[PathLike] = None) -> sitk.Image:
         """
@@ -630,7 +631,7 @@ class DICOMImageReader:
 
     def _read_metadata(self) -> Dict[str, str]:
         if self._image is not None:
-            return {key: self.image.GetMetaData(key).strip() for key in self.image.GetMetaDataKeys()}
+            return self._collect_metadata_sitk(self._image)
 
         if self.path.name == "dicom.zip":
             # read metadata from dicom.zip with pydicom
@@ -638,8 +639,9 @@ class DICOMImageReader:
                 if not zf.namelist():
                     raise RuntimeError('dicom.zip is empty')
 
-                ds = pydicom.dcmread(io.BytesIO(zf.read(zf.namelist()[-1])))
-                return self._collect_metadata_pydicom(ds)
+                with tempfile.TemporaryDirectory() as tempdir:
+                    targetpath = zf.extract(member=zf.namelist()[-1], path=tempdir)
+                    return self._read_metadata_from_file(targetpath)
 
         # extract metadata from first/last(?) DICOM slice
         dicom_slice_path = self.dicom_slice_paths[0]
@@ -668,7 +670,7 @@ class DICOMImageReader:
             # collect metadata with DICOM names, e.g. patientsage, as keys)
             metadata[name] = ref.GetMetaData(key).strip() if ref.HasMetaDataKey(key) else ''
 
-        metadata["spacing"] = ref.GetSpacing()
+        metadata["spacing_inplane"] = ref.GetSpacing()[0:2]
         return metadata
 
     def _collect_metadata_pydicom(self, ds: "pydicom.dataset.Dataset") -> Dict[str, str]:
@@ -684,7 +686,7 @@ class DICOMImageReader:
             value = self.get_pydicom_value(ds, key)
             metadata[key] = value if value is not None else ''
 
-        metadata["spacing"] = ds.PixelSpacing
+        metadata["spacing_inplane"] = ds.PixelSpacing[0:2]
         return metadata
 
     @staticmethod
@@ -709,8 +711,11 @@ class DICOMImageReader:
     def get_orientation_tuple_sitk(self, ds: pydicom.FileDataset) -> Tuple:
         return tuple(self.get_orientation_matrix(ds).transpose().flatten())
 
-    def _verify_dicom_filenames(self, filenames: List[PathLike]) -> bool:
+    def _verify_dicom_filenames(self, filenames: Optional[List[PathLike]] = None) -> bool:
         """Verify DICOM filenames have increasing numbers, with no gaps"""
+        if filenames is None:
+            filenames = [os.path.basename(dcm) for dcm in self.dicom_slice_paths]
+
         vdcms = [d.rsplit('.', 1)[0] for d in filenames]
         vdcms = [int(''.join(c for c in d if c.isdigit())) for d in vdcms]
         missing_slices = False
