@@ -291,7 +291,7 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
                     skips.append(i)
 
                 try:
-                    image = DICOMImageReader(serie.path).image
+                    image = DICOMImageReader(serie.path, verify_dicom_filenames=self.settings.verify_dicom_filenames).image
                 except Exception as e:
                     serie.write_log(
                         f'Skipped "{mapping}", reading DICOM sequence failed, maybe corrupt data? Error: {e}')
