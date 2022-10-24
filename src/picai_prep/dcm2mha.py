@@ -289,6 +289,7 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
                 if dst_path.exists():
                     serie.write_log(f'Skipped "{mapping}", already exists: {dst_path}')
                     skips.append(i)
+                    continue
 
                 try:
                     image = DICOMImageReader(serie.path, verify_dicom_filenames=self.settings.verify_dicom_filenames).image
