@@ -492,7 +492,8 @@ class DICOMImageReader:
                     for name in zf.namelist()
                     if name.endswith(".dcm")
                 ]
-            self._verify_dicom_filenames()
+            if self.verify_dicom_filenames:
+                self._verify_dicom_filenames()
         else:
             self._update_dicom_list()
 
@@ -531,7 +532,6 @@ class DICOMImageReader:
             raise MissingDICOMFilesError(self.path)
 
         if self.verify_dicom_filenames:
-            # verify DICOM filenames have increasing numbers, with no gaps
             self._verify_dicom_filenames()
 
     def _read_image_sitk(self, path: Optional[PathLike] = None) -> sitk.Image:
