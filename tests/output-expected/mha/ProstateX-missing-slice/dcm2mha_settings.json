@@ -1,0 +1,38 @@
+{
+    "mappings": {
+        "t2w": {
+            "SeriesDescription": [
+                "t2_tse_tra"
+            ]
+        },
+        "cor": {
+            "SeriesDescription": [
+                "t2_tse_cor"
+            ]
+        },
+        "sag": {
+            "SeriesDescription": [
+                "t2_tse_sag"
+            ]
+        },
+        "adc": {
+            "SeriesDescription": [
+                "ep2d_diff_tra_DYNDIST_MIX_ADC",
+                "ep2d_diff_tra_DYNDIST_ADC"
+            ]
+        },
+        "hbv": {
+            "SeriesDescription": [
+                "ep2d_diff_tra_DYNDIST_MIXCALC_BVAL",
+                "ep2d_diff_tra_DYNDISTCALC_BVAL"
+            ]
+        }
+    },
+    "archive": [
+        {
+            "patient_id": "ProstateX-0000",
+            "study_id": "07-07-2011",
+            "path": "ProstateX-0000/07-07-2011/8.000000-ep2ddifftraDYNDISTCALCBVAL-83202"
+        }
+    ]
+}
