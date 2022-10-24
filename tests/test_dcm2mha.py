@@ -305,3 +305,22 @@ def test_image_reader_dicom_zip(input_dir: str):
 ])
 def test_image_reader_dicom_zip_invalid_sequence(input_dir: str):
     test_image_reader_dicom_zip(input_dir)
+
+
+@pytest.mark.xfail
+def test_image_reader_missing_slice():
+    """
+    Verify that a missing slice is detected.
+    """
+    input_dir = "tests/input/dcm/ProstateX-0000-missing-slice/07-07-2011/8.000000-ep2ddifftraDYNDISTCALCBVAL-83202"
+    _ = DICOMImageReader(path=input_dir).image
+
+
+def test_image_reader_missing_slice_okay():
+    """
+    Verify that an image with a missing slice can be converted.
+    """
+    input_dir = "tests/input/dcm/ProstateX-0000-missing-slice/07-07-2011/8.000000-ep2ddifftraDYNDISTCALCBVAL-83202"
+    image = DICOMImageReader(path=input_dir, verify_dicom_filenames=False).image
+    image = sitk.GetArrayFromImage(image)
+    assert image.shape == (18, 128, 84)
