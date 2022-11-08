@@ -289,9 +289,10 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
                 if dst_path.exists():
                     serie.write_log(f'Skipped "{mapping}", already exists: {dst_path}')
                     skips.append(i)
+                    continue
 
                 try:
-                    image = DICOMImageReader(serie.path).image
+                    image = DICOMImageReader(serie.path, verify_dicom_filenames=self.settings.verify_dicom_filenames).image
                 except Exception as e:
                     serie.write_log(
                         f'Skipped "{mapping}", reading DICOM sequence failed, maybe corrupt data? Error: {e}')
@@ -492,7 +493,8 @@ class DICOMImageReader:
                     for name in zf.namelist()
                     if name.endswith(".dcm")
                 ]
-            self._verify_dicom_filenames()
+            if self.verify_dicom_filenames:
+                self._verify_dicom_filenames()
         else:
             self._update_dicom_list()
 
@@ -531,7 +533,6 @@ class DICOMImageReader:
             raise MissingDICOMFilesError(self.path)
 
         if self.verify_dicom_filenames:
-            # verify DICOM filenames have increasing numbers, with no gaps
             self._verify_dicom_filenames()
 
     def _read_image_sitk(self, path: Optional[PathLike] = None) -> sitk.Image:

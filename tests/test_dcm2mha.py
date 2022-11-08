@@ -23,6 +23,8 @@ import SimpleITK as sitk
 from numpy.testing import assert_allclose
 from picai_prep.dcm2mha import (Dicom2MHACase, Dicom2MHAConverter,
                                 Dicom2MHASettings, DICOMImageReader)
+from picai_prep.examples.dcm2mha.sample_archive import \
+    generate_dcm2mha_settings
 
 
 def test_dcm2mha(
@@ -305,3 +307,75 @@ def test_image_reader_dicom_zip(input_dir: str):
 ])
 def test_image_reader_dicom_zip_invalid_sequence(input_dir: str):
     test_image_reader_dicom_zip(input_dir)
+
+
+@pytest.mark.xfail
+def test_image_reader_missing_slice():
+    """
+    Verify that a missing slice is detected.
+    """
+    input_dir = "tests/input/dcm/ProstateX-missing-slice/ProstateX-0000/07-07-2011/8.000000-ep2ddifftraDYNDISTCALCBVAL-83202"
+    _ = DICOMImageReader(path=input_dir).image
+
+
+def test_image_reader_missing_slice_okay():
+    """
+    Verify that an image with a missing slice can be converted.
+    """
+    input_dir = "tests/input/dcm/ProstateX-missing-slice/ProstateX-0000/07-07-2011/8.000000-ep2ddifftraDYNDISTCALCBVAL-83202"
+    image = DICOMImageReader(path=input_dir, verify_dicom_filenames=False).image
+    image = sitk.GetArrayFromImage(image)
+    assert image.shape == (18, 128, 84)
+
+
+def test_Dicom2MHAConverter_missing_slice_okay(
+    input_dir: str = "tests/input/dcm/ProstateX-missing-slice",
+    output_dir: str = "tests/output/mha/ProstateX-missing-slice",
+    output_expected_dir: str = "tests/output-expected/mha/ProstateX-missing-slice",
+):
+    """
+    Verify that an image with a missing slice can be converted with Dicom2MHAConverter
+    """
+    # paths
+    dcm2mha_settings_path = Path(output_dir) / "dcm2mha_settings.json"
+
+    # remove output folder (to prevent skipping the conversion)
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
+
+    # generate dcm2mha_settings
+    dcm2mha_settings_path.parent.mkdir(parents=True, exist_ok=True)
+    generate_dcm2mha_settings(
+        archive_dir=input_dir,
+        output_path=dcm2mha_settings_path,
+
+    )
+
+    # test usage from Python
+    archive = Dicom2MHAConverter(
+        input_dir=input_dir,
+        output_dir=output_dir,
+        dcm2mha_settings=dcm2mha_settings_path
+    )
+    archive.settings.verify_dicom_filenames = False
+    archive.convert()
+
+    # compare output
+    for patient_id, subject_id in [
+        ("ProstateX-0000", "ProstateX-0000_07-07-2011"),
+    ]:
+        for modality in ["hbv"]:
+            # construct paths to MHA images
+            path_out = os.path.join(output_dir, patient_id, f"{subject_id}_{modality}.mha")
+            path_out_expected = os.path.join(output_expected_dir, patient_id, f"{subject_id}_{modality}.mha")
+
+            # sanity check: check if outputs exist
+            assert os.path.exists(path_out), f"Could not find output file at {path_out}!"
+            assert os.path.exists(path_out_expected), f"Could not find output file at {path_out_expected}!"
+
+            # read images
+            img = sitk.GetArrayFromImage(sitk.ReadImage(str(path_out)))
+            img_expected = sitk.GetArrayFromImage(sitk.ReadImage(str(path_out_expected)))
+
+            # compare images
+            assert_allclose(img_expected, img)
