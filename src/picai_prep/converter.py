@@ -28,12 +28,8 @@ class Case(ABC):
         Execute conversion process, while handling errors.
         Please override the `convert_item` method to implement the conversion process.
         """
-        try:
-            self.convert_item(**kargs)
-        except Exception as e:
-            self.invalidate(e)
-        finally:
-            return self.compile_log()
+        self.convert_item(**kargs)
+        return self.compile_log()
 
     @property
     def subject_id(self):
