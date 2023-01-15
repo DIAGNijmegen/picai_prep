@@ -15,7 +15,6 @@
 
 import json
 import logging
-import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
@@ -152,7 +151,7 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
                               f'\tSTUDY ID\t{self.study_id}\n',
                               *self._log,
                               'Error:',
-                              traceback.format_exc()])
+                              self.error_trace])
 
 
 class MHA2nnUNetConverter(Converter):

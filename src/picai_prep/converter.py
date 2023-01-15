@@ -1,4 +1,5 @@
 import logging
+import traceback
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -28,8 +29,12 @@ class Case(ABC):
         Execute conversion process, while handling errors.
         Please override the `convert_item` method to implement the conversion process.
         """
-        self.convert_item(**kargs)
-        return self.compile_log()
+        try:
+            self.convert_item(**kargs)
+        except Exception as e:
+            self.invalidate(e)
+        finally:
+            return self.compile_log()
 
     @property
     def subject_id(self):
@@ -41,6 +46,7 @@ class Case(ABC):
 
     def invalidate(self, error: Exception):
         self.error = error
+        self.error_trace = traceback.format_exc()
 
     def write_log(self, msg: str):
         self._log.append(msg)
