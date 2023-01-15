@@ -128,14 +128,26 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
 
     def compile_log(self):
         if self.settings.verbose == 0:
+            # logging is disabled
             return None
 
-        if self.is_valid or self.settings.verbose >= 2:
+        if self.is_valid and self.settings.verbose >= 2:
+            # conversion was successful and verbose logging is enabled
             return '\n'.join(['=' * 120,
                               f'CASE {self.subject_id}',
                               f'\tPATIENT ID\t{self.patient_id}',
                               f'\tSTUDY ID\t{self.study_id}\n',
                               *self._log])
+
+        if not self.is_valid:
+            # conversion was failed, log everything
+            return '\n'.join(['=' * 120,
+                              f'CASE {self.subject_id}',
+                              f'\tPATIENT ID\t{self.patient_id}',
+                              f'\tSTUDY ID\t{self.study_id}\n',
+                              *self._log,
+                              'Error:',
+                              self.error])
 
 
 class MHA2nnUNetConverter(Converter):
