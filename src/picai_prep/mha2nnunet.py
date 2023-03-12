@@ -58,16 +58,25 @@ class _MHA2nnUNetCaseBase:
 class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
     annotation_path: Optional[Path] = None
     verified_scan_paths: List[Path] = field(default_factory=list)
+    skip_conversion: bool = False
 
     def __post_init__(self) -> None:
         if self.annotations_dir and self.annotation_path:
             self.annotation_path = self.annotations_dir / self.annotation_path
 
     def convert_item(self, scans_out_dir: Path, annotations_out_dir: Path) -> None:
-        self.initialize()
+        self.initialize(scans_out_dir, annotations_out_dir)
+        if self.skip_conversion:
+            return
         self.process_and_write(scans_out_dir, annotations_out_dir)
 
-    def initialize(self) -> None:
+    def initialize(self, scans_out_dir: Path, annotations_out_dir: Path):
+        # check if all output paths exist
+        if self.output_files_exist(scans_out_dir=scans_out_dir, annotations_out_dir=annotations_out_dir):
+            self.skip_conversion = True
+            print(f"Skipping {self.subject_id}, already converted.")
+            return
+
         self.write_log(f'Importing {plural(len(self.scan_paths), "scan")}')
 
         missing_paths = []
@@ -108,11 +117,6 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
         """
         Read scans (and annotation), perform preprocessing and write to disk.
         """
-        # check if all output paths exist
-        if self.output_files_exist(scans_out_dir=scans_out_dir, annotations_out_dir=annotations_out_dir):
-            self.write_log(f"Skipping {self.subject_id}, already converted.")
-            return
-
         self.write_log(
             f'Writing {plural(len(self.verified_scan_paths), "scan")}'
             + ' including annotation' if self.annotation_path else ''
