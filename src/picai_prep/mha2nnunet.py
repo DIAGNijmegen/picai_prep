@@ -152,7 +152,7 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
             self.write_log(f'Wrote annotation to {destination_path}')
 
     def compile_log(self) -> Optional[str]:
-        if self.settings.verbose == 0:
+        if self.settings.verbose == 0 or self.skip_conversion:
             return None
 
         if self.is_valid or self.settings.verbose >= 2:
