@@ -56,6 +56,9 @@ class Case(ABC):
     def __repr__(self):
         return f'Case({self.subject_id})'
 
+    def __del__(self):
+        print("Case deleted from memory")
+
 
 class Converter:
     @staticmethod
@@ -83,7 +86,7 @@ class Converter:
 
                     # remove case from memory
                     del futures[future]
-                    print("Removed case from memory")
+                    print("Removed case from memory?")
         else:
             for case in tqdm(cases):
                 case_log = case.convert(**parameters)
