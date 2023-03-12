@@ -80,8 +80,10 @@ class Converter:
                     case_log = future.result()
                     if case_log:
                         logging.info(case_log)
-                    case = futures[future]
-                    case._log.clear()
+
+                    # remove case from memory
+                    del futures[future]
+                    print("Removed case from memory")
         else:
             for case in tqdm(cases):
                 case_log = case.convert(**parameters)
