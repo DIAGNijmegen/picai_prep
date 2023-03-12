@@ -93,6 +93,7 @@ class Converter:
                 case_log = case.convert(**parameters)
                 if case_log:
                     logging.info(case_log)
+                del case
 
         end_time = datetime.now()
         logging.info(f'{title} conversion ended at {end_time.isoformat()}\n\t(runtime {end_time - start_time})')
