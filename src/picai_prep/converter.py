@@ -17,19 +17,19 @@ class Case(ABC):
     _log: List[str] = field(default_factory=list)
 
     @abstractmethod
-    def convert_item(self, **kargs):
+    def convert_item(self, **kwargs):
         """"
         Execute conversion process, please implement this.
         """
         raise NotImplementedError()
 
-    def convert(self, **kargs):
+    def convert(self, **kwargs):
         """"
         Execute conversion process, while handling errors.
         Please override the `convert_item` method to implement the conversion process.
         """
         try:
-            self.convert_item(**kargs)
+            self.convert_item(**kwargs)
         except Exception as e:
             self.invalidate(e)
         finally:
