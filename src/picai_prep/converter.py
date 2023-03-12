@@ -56,9 +56,6 @@ class Case(ABC):
     def __repr__(self):
         return f'Case({self.subject_id})'
 
-    def __del__(self):
-        print("Case deleted from memory")
-
 
 class Converter:
     @staticmethod
@@ -76,24 +73,18 @@ class Converter:
         start_time = datetime.now()
         logging.info(f'{title} conversion started at {start_time.isoformat()}\n')
 
-        if False:
+        if num_threads >= 2:
             with ThreadPoolExecutor(max_workers=num_threads) as pool:
                 futures = {pool.submit(case.convert, **parameters): case for case in cases}
                 for future in tqdm(as_completed(futures), total=len(cases)):
                     case_log = future.result()
                     if case_log:
                         logging.info(case_log)
-
-                    # remove case from memory
-                    case = futures[future]
-                    del futures[future]
-                    del case
         else:
             for case in tqdm(cases):
                 case_log = case.convert(**parameters)
                 if case_log:
                     logging.info(case_log)
-                del case
 
         end_time = datetime.now()
         logging.info(f'{title} conversion ended at {end_time.isoformat()}\n\t(runtime {end_time - start_time})')
