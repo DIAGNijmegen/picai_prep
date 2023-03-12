@@ -76,7 +76,7 @@ class Converter:
         start_time = datetime.now()
         logging.info(f'{title} conversion started at {start_time.isoformat()}\n')
 
-        if num_threads >= 2:
+        if False:
             with ThreadPoolExecutor(max_workers=num_threads) as pool:
                 futures = {pool.submit(case.convert, **parameters): case for case in cases}
                 for future in tqdm(as_completed(futures), total=len(cases)):
