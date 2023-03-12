@@ -80,6 +80,8 @@ class Converter:
                     case_log = future.result()
                     if case_log:
                         logging.info(case_log)
+                    case = futures[future]
+                    case._log.clear()
         else:
             for case in tqdm(cases):
                 case_log = case.convert(**parameters)
