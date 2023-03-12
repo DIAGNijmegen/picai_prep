@@ -86,7 +86,6 @@ class Converter:
 
                     # remove case from memory
                     del futures[future]
-                    print("Removed case from memory?")
         else:
             for case in tqdm(cases):
                 case_log = case.convert(**parameters)
