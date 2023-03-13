@@ -74,7 +74,7 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
         # check if all output paths exist
         if self.output_files_exist(scans_out_dir=scans_out_dir, annotations_out_dir=annotations_out_dir):
             self.skip_conversion = True
-            print(f"Skipping {self.subject_id}, already converted.")
+            self.write_log(f"Skipping {self.subject_id}, already converted.")
             return
 
         self.write_log(f'Importing {plural(len(self.scan_paths), "scan")}')
