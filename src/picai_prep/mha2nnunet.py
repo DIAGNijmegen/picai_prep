@@ -74,7 +74,6 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
         # check if all output paths exist
         if self.output_files_exist(scans_out_dir=scans_out_dir, annotations_out_dir=annotations_out_dir):
             self.skip_conversion = True
-            self.write_log(f"Skipping {self.subject_id}, already converted.")
             return
 
         self.write_log(f'Importing {plural(len(self.scan_paths), "scan")}')
@@ -152,8 +151,11 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
             self.write_log(f'Wrote annotation to {destination_path}')
 
     def compile_log(self) -> Optional[str]:
-        if self.settings.verbose == 0 or self.skip_conversion:
+        if self.settings.verbose == 0:
             return None
+
+        if self.skip_conversion:
+            return f"Skipping {self.subject_id}, already converted."
 
         if self.is_valid or self.settings.verbose >= 2:
             return '\n'.join(['=' * 120,
