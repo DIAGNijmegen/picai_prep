@@ -14,16 +14,17 @@
 
 
 import json
-import sys
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import List, Optional
 
 import pytest
 import SimpleITK as sitk
 from numpy.testing import assert_allclose
+
 from picai_prep.data_utils import PathLike
 from picai_prep.examples.mha2nnunet import picai_archive
 from picai_prep.mha2nnunet import MHA2nnUNetConverter
@@ -163,7 +164,7 @@ def test_mha2nnunet_commandline(
     ]
 
     # run command
-    subprocess.run(cmd, shell=sys.platform == 'win32').check_returncode()
+    subprocess.check_call(cmd, shell=(sys.platform == 'win32'))
 
     # check dataset.json
     path_out = task_dir / "dataset.json"
@@ -305,6 +306,10 @@ def test_mha2nnunet_picai(
     - 10868_1000884 is pretty normal. T2-weighted has 21 slices, while diffusion has 19, which is representative.
     - except for 10699_1000715_0002, all cases in output-expected are aligned between sequences.
     """
+    # remove output folder (to prevent skipping the conversion)
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
+
     picai_archive.generate_mha2nnunet_settings(
         archive_dir=input_dir,
         annotations_dir=annotations_dir,
