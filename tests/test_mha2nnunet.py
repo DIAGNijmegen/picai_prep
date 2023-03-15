@@ -14,6 +14,7 @@
 
 
 import json
+import sys
 import os
 import shutil
 import subprocess
@@ -162,7 +163,7 @@ def test_mha2nnunet_commandline(
     ]
 
     # run command
-    subprocess.check_call(cmd)
+    subprocess.run(cmd, shell=sys.platform == 'win32').check_returncode()
 
     # check dataset.json
     path_out = task_dir / "dataset.json"

@@ -151,9 +151,9 @@ def input_verification_crop_or_pad(
             size = size_zyx
         else:
             # verify size
-            if size != size_zyx:
+            if list(size) != list(size_zyx):
                 raise ValueError(f"Size and physical size do not match. Size: {size}, physical size: "
-                                 f"{physical_size}, spacing: {spacing_zyx}")
+                                 f"{physical_size}, spacing: {spacing_zyx}, size_zyx: {size_zyx}.")
 
     if isinstance(image, sitk.Image):
         # determine shape and convert convention of (z, y, x) to (x, y, z) for SimpleITK
