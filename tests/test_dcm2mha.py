@@ -91,7 +91,7 @@ def test_dcm2mha_commandline(
     ]
 
     # run command
-    subprocess.check_output(cmd, shell=True)
+    subprocess.check_call(cmd, shell=True)
 
     # compare output
     for patient_id, subject_id in [
