@@ -14,6 +14,7 @@
 
 
 import os
+import sys
 import shutil
 import subprocess
 from pathlib import Path
@@ -91,7 +92,7 @@ def test_dcm2mha_commandline(
     ]
 
     # run command
-    subprocess.run(cmd, shell=True, check=True).check_returncode()
+    subprocess.run(cmd).check_returncode()
 
     # compare output
     for patient_id, subject_id in [
