@@ -1,4 +1,5 @@
 import logging
+import traceback
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -45,6 +46,7 @@ class Case(ABC):
 
     def invalidate(self, error: Exception):
         self.error = error
+        self.error_trace = traceback.format_exc()
 
     def write_log(self, msg: str):
         self._log.append(msg)

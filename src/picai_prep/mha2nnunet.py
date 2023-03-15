@@ -152,17 +152,33 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
 
     def compile_log(self) -> Optional[str]:
         if self.settings.verbose == 0:
+            # logging is disabled
             return None
 
         if self.skip_conversion:
             return f"Skipping {self.subject_id}, already converted."
 
-        if self.is_valid or self.settings.verbose >= 2:
+        if self.is_valid:
+            if self.settings.verbose >= 2:
+                # conversion was successful and verbose logging is enabled
+                return '\n'.join(['=' * 120,
+                                  f'CASE {self.subject_id}',
+                                  f'\tPATIENT ID\t{self.patient_id}',
+                                  f'\tSTUDY ID\t{self.study_id}\n',
+                                  *self._log])
+            else:
+                # conversion was successful and short logging is enabled
+                return '\n'.join([f'CASE {self.subject_id} successfully converted'])
+        else:
+            # conversion failed, log everything
+
             return '\n'.join(['=' * 120,
                               f'CASE {self.subject_id}',
                               f'\tPATIENT ID\t{self.patient_id}',
                               f'\tSTUDY ID\t{self.study_id}\n',
-                              *self._log])
+                              *self._log,
+                              'Error:',
+                              self.error_trace])
 
 
 class MHA2nnUNetConverter(Converter):
