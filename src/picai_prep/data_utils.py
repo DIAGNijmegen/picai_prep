@@ -52,10 +52,10 @@ def atomic_image_write(
         dst_path_bak = path.with_name(f"backup_{path.name}")
         if dst_path_bak.exists():
             raise FileExistsError(f"Existing backup file found at {dst_path_bak}.")
-        os.rename(path, dst_path_bak)
+        os.replace(path, dst_path_bak)
 
     # rename temporary file
-    os.rename(path_tmp, path)
+    os.replace(path_tmp, path)
 
 
 def atomic_file_copy(
@@ -89,7 +89,7 @@ def atomic_file_copy(
         dst_path_bak = dst_path.with_name(f"backup.{dst_path.name}")
         if dst_path_bak.exists():
             raise FileExistsError(f"Existing backup file found at {dst_path_bak}.")
-        os.rename(dst_path, dst_path_bak)
+        os.replace(dst_path, dst_path_bak)
 
     # rename temporary file
-    os.rename(dst_path_tmp, dst_path)
+    os.replace(dst_path_tmp, dst_path)
