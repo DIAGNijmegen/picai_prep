@@ -16,11 +16,13 @@
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 import SimpleITK as sitk
 from numpy.testing import assert_allclose
+
 from picai_prep.dcm2mha import (Dicom2MHACase, Dicom2MHAConverter,
                                 Dicom2MHASettings, DICOMImageReader)
 from picai_prep.examples.dcm2mha.sample_archive import \
@@ -91,7 +93,7 @@ def test_dcm2mha_commandline(
     ]
 
     # run command
-    subprocess.check_call(cmd)
+    subprocess.check_call(cmd, shell=(sys.platform == 'win32'))
 
     # compare output
     for patient_id, subject_id in [

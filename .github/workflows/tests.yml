@@ -3,6 +3,7 @@ name: Tests
 on:
   - push
   - pull_request
+  - workflow_dispatch 
 
 jobs:
   test:
@@ -10,7 +11,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: ['3.6', '3.10']
+        python-version: ['3.7', '3.10']
 
     steps:
     - uses: actions/checkout@v2
