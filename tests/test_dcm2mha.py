@@ -13,7 +13,7 @@
 #  limitations under the License.
 
 
-import os
+import os, sys
 import shutil
 import subprocess
 from pathlib import Path
@@ -91,7 +91,7 @@ def test_dcm2mha_commandline(
     ]
 
     # run command
-    subprocess.run(cmd).check_returncode()
+    subprocess.run(cmd, shell=True).check_returncode()
 
     # compare output
     for patient_id, subject_id in [

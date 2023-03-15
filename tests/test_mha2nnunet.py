@@ -162,7 +162,7 @@ def test_mha2nnunet_commandline(
     ]
 
     # run command
-    subprocess.run(cmd).check_returncode()
+    subprocess.run(cmd, shell=True).check_returncode()
 
     # check dataset.json
     path_out = task_dir / "dataset.json"
