@@ -105,7 +105,7 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
         """
         destination_paths = [
             scans_out_dir / f"{self.subject_id}_{i:04d}.nii.gz"
-            for i in range(len(self.verified_scan_paths))
+            for i in range(len(self.scan_paths))
         ]
         if self.annotation_path:
             destination_paths.append(annotations_out_dir / f"{self.subject_id}.nii.gz")
