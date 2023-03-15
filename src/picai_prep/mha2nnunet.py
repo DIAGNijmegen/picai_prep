@@ -58,16 +58,24 @@ class _MHA2nnUNetCaseBase:
 class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
     annotation_path: Optional[Path] = None
     verified_scan_paths: List[Path] = field(default_factory=list)
+    skip_conversion: bool = False
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.annotations_dir and self.annotation_path:
             self.annotation_path = self.annotations_dir / self.annotation_path
 
     def convert_item(self, scans_out_dir: Path, annotations_out_dir: Path) -> None:
-        self.initialize()
+        self.initialize(scans_out_dir, annotations_out_dir)
+        if self.skip_conversion:
+            return
         self.process_and_write(scans_out_dir, annotations_out_dir)
 
-    def initialize(self):
+    def initialize(self, scans_out_dir: Path, annotations_out_dir: Path):
+        # check if all output paths exist
+        if self.output_files_exist(scans_out_dir=scans_out_dir, annotations_out_dir=annotations_out_dir):
+            self.skip_conversion = True
+            return
+
         self.write_log(f'Importing {plural(len(self.scan_paths), "scan")}')
 
         missing_paths = []
@@ -91,7 +99,23 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
 
             self.write_log(f'\t+ {self.annotation_path}')
 
-    def process_and_write(self, scans_out_dir: Path, annotations_out_dir: Path):
+    def output_files_exist(self, scans_out_dir: Path, annotations_out_dir: Path) -> bool:
+        """
+        Check whether all preprocessed scans (and annotation) already exist.
+        """
+        destination_paths = [
+            scans_out_dir / f"{self.subject_id}_{i:04d}.nii.gz"
+            for i in range(len(self.scan_paths))
+        ]
+        if self.annotation_path:
+            destination_paths.append(annotations_out_dir / f"{self.subject_id}.nii.gz")
+        if all(path.exists() for path in destination_paths):
+            return True
+
+    def process_and_write(self, scans_out_dir: Path, annotations_out_dir: Path) -> None:
+        """
+        Read scans (and annotation), perform preprocessing and write to disk.
+        """
         self.write_log(
             f'Writing {plural(len(self.verified_scan_paths), "scan")}'
             + ' including annotation' if self.annotation_path else ''
@@ -126,10 +150,13 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
             atomic_image_write(sample.lbl, path=annotations_out_dir / f"{self.subject_id}.nii.gz", mkdir=True)
             self.write_log(f'Wrote annotation to {destination_path}')
 
-    def compile_log(self):
+    def compile_log(self) -> Optional[str]:
         if self.settings.verbose == 0:
             # logging is disabled
             return None
+
+        if self.skip_conversion:
+            return f"Skipping {self.subject_id}, already converted."
 
         if self.is_valid:
             if self.settings.verbose >= 2:
@@ -142,9 +169,9 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
             else:
                 # conversion was successful and short logging is enabled
                 return '\n'.join([f'CASE {self.subject_id} successfully converted'])
+        else:
+            # conversion failed, log everything
 
-        if not self.is_valid:
-            # conversion was failed, log everything
             return '\n'.join(['=' * 120,
                               f'CASE {self.subject_id}',
                               f'\tPATIENT ID\t{self.patient_id}',
