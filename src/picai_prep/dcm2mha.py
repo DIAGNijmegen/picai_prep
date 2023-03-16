@@ -16,6 +16,7 @@ import logging
 import os
 import re
 import tempfile
+import traceback
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -296,7 +297,10 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
                 except Exception as e:
                     serie.write_log(
                         f'Skipped "{mapping}", reading DICOM sequence failed, maybe corrupt data? Error: {e}')
-                    logging.error(str(e))
+                    if self.settings.verbose >= 2:
+                        logging.error(traceback.format_exc())
+                    else:
+                        logging.error(str(e))
                     errors.append(i)
                 else:
                     if self.settings.scan_postprocess_func is not None:
