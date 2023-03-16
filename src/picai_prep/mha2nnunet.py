@@ -58,7 +58,6 @@ class _MHA2nnUNetCaseBase:
 class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
     annotation_path: Optional[Path] = None
     verified_scan_paths: List[Path] = field(default_factory=list)
-    skip_conversion: bool = False
 
     def __post_init__(self) -> None:
         if self.annotations_dir and self.annotation_path:
@@ -155,7 +154,7 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
             # logging is disabled
             return None
 
-        if self.skip_conversion:
+        if self.skip_conversion and self.settings.verbose >= 2:
             return f"Skipping {self.subject_id}, already converted."
 
         if self.is_valid:
@@ -171,7 +170,6 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
                 return '\n'.join([f'CASE {self.subject_id} successfully converted'])
         else:
             # conversion failed, log everything
-
             return '\n'.join(['=' * 120,
                               f'CASE {self.subject_id}',
                               f'\tPATIENT ID\t{self.patient_id}',
