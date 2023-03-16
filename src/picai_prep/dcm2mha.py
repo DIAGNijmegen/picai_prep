@@ -672,6 +672,7 @@ class DICOMImageReader:
             metadata[name] = ref.GetMetaData(key).strip() if ref.HasMetaDataKey(key) else ''
 
         metadata["spacing_inplane"] = ref.GetSpacing()[0:2]
+        metadata["image_direction"] = ref.GetDirection()
         return metadata
 
     def _collect_metadata_pydicom(self, ds: "pydicom.dataset.Dataset") -> Dict[str, str]:
