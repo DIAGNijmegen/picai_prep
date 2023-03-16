@@ -524,13 +524,52 @@ class DICOMImageReader:
         try:
             return self._read_image_sitk(path=path)
         except RuntimeError:
-            return self._read_image_pydicom(path=path)
+            # try again while removing localizer slices
+            try:
+                return self._read_image_sitk(path=path, filter_localizer_slices=True)
+            except RuntimeError:
+                # try again with pydicom
+                return self._read_image_pydicom(path=path)
 
-    def _update_dicom_list(self, path: Optional[PathLike] = None):
+    @staticmethod
+    def _filter_localizer_slices(dicom_slice_paths: List[str]) -> List[str]:
+        """
+        Filter out localizer slices (slices with ImageType == LOCALIZER).
+        WARNING: this is slow and a heuristic that may not work for all datasets.
+        """
+        filtered_dicom_slice_paths = []
+        for path in dicom_slice_paths:
+            reader = sitk.ImageFileReader()
+            reader.SetFileName(str(path))
+            reader.LoadPrivateTagsOn()
+            reader.ReadImageInformation()
+            image_type = reader.GetMetaData("0008|0008")
+            if "LOCALIZER" not in image_type.upper():
+                filtered_dicom_slice_paths.append(path)
+        return filtered_dicom_slice_paths
+
+    def _update_dicom_list(self, path: Optional[PathLike] = None, filter_localizer_slices: bool = False):
+        """
+        Update the list paths to the DICOM slices.
+
+        Parameters
+        ----------
+        path: PathLike
+            path to the folder containing the DICOM slices. The folder should contain the DICOM slices,
+            or a zip file named "dicom.zip" containing the DICOM slices.
+            default: self.path
+        filter_localizer_slices: bool
+            whether to filter out localizer slices (slices with ImageType == LOCALIZER)
+            WARNING: this is slow and a heuristic that may not work for all datasets
+            default: False
+        """
         if path is None:
             path = self.path
 
         self.dicom_slice_paths = self.series_reader.GetGDCMSeriesFileNames(str(path))
+
+        if filter_localizer_slices:
+            self.dicom_slice_paths = self._filter_localizer_slices(self.dicom_slice_paths)
 
         # verify DICOM files are found
         if len(self.dicom_slice_paths) == 0:
@@ -539,7 +578,7 @@ class DICOMImageReader:
         if self.verify_dicom_filenames:
             self._verify_dicom_filenames()
 
-    def _read_image_sitk(self, path: Optional[PathLike] = None) -> sitk.Image:
+    def _read_image_sitk(self, path: Optional[PathLike] = None, filter_localizer_slices: bool = False) -> sitk.Image:
         """
         Read image using SimpleITK.
 
@@ -549,14 +588,19 @@ class DICOMImageReader:
             path to the folder containing the DICOM slices. The folder should contain the DICOM slices,
             or a zip file named "dicom.zip" containing the DICOM slices.
             default: self.path
+        filter_localizer_slices: bool
+            whether to filter out localizer slices (slices with ImageType == LOCALIZER)
+            WARNING: this is slow and a heuristic that may not work for all datasets
+            default: False
 
         Returns
         -------
         image: SimpleITK.Image
         """
-        if path is not None:
-            self.path = path
-            self._update_dicom_list(path=path)
+        if path is not None or filter_localizer_slices:
+            if path is not None:
+                self.path = path
+            self._update_dicom_list(path=path, filter_localizer_slices=filter_localizer_slices)
 
         # read DICOM sequence
         self.series_reader.SetFileNames(self.dicom_slice_paths)
