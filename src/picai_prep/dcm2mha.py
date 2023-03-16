@@ -568,9 +568,6 @@ class DICOMImageReader:
 
         self.dicom_slice_paths = self.series_reader.GetGDCMSeriesFileNames(str(path))
 
-        if filter_localizer_slices:
-            self.dicom_slice_paths = self._filter_localizer_slices(self.dicom_slice_paths)
-
         # verify DICOM files are found
         if len(self.dicom_slice_paths) == 0:
             raise MissingDICOMFilesError(self.path)
@@ -578,7 +575,16 @@ class DICOMImageReader:
         if self.verify_dicom_filenames:
             self._verify_dicom_filenames()
 
-    def _read_image_sitk(self, path: Optional[PathLike] = None, filter_localizer_slices: bool = False) -> sitk.Image:
+        if filter_localizer_slices:
+            # filter out localizer slices (these are sometimes included with the DIOCM slices of the scan)
+            # note: filter out after verifying filenames.
+            self.dicom_slice_paths = self._filter_localizer_slices(self.dicom_slice_paths)
+
+    def _read_image_sitk(
+        self,
+        path: Optional[PathLike] = None,
+        filter_localizer_slices: bool = False
+    ) -> sitk.Image:
         """
         Read image using SimpleITK.
 
