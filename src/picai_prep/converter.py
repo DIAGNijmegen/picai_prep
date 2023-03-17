@@ -33,8 +33,7 @@ class Case(ABC):
             self.convert_item(**kwargs)
         except Exception as e:
             self.invalidate(e)
-        finally:
-            return self.compile_log()
+        return self.compile_log()
 
     @property
     def subject_id(self):
@@ -54,6 +53,13 @@ class Case(ABC):
     @abstractmethod
     def compile_log(self):
         raise NotImplementedError()
+
+    def cleanup(self):
+        self.patient_id = None
+        self.study_id = None
+        self.error = None
+        self._log = None
+        gc.collect()
 
     def __repr__(self):
         return f'Case({self.subject_id})'
@@ -82,6 +88,8 @@ class Converter:
                     case_log = future.result()
                     if case_log:
                         logging.info(case_log)
+                    case = futures[future]
+                    case.cleanup()
         else:
             for case in tqdm(cases):
                 case_log = case.convert(**parameters)
