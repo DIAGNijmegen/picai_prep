@@ -576,7 +576,7 @@ class DICOMImageReader:
             self._verify_dicom_filenames()
 
         if filter_localizer_slices:
-            # filter out localizer slices (these are sometimes included with the DIOCM slices of the scan)
+            # filter out localizer slices (these are sometimes included with the DICOM slices of the scan)
             # note: filter out after verifying filenames.
             self.dicom_slice_paths = self._filter_localizer_slices(self.dicom_slice_paths)
 
