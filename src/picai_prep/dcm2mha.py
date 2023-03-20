@@ -500,7 +500,7 @@ class DICOMImageReader:
             if self.verify_dicom_filenames:
                 self._verify_dicom_filenames()
         else:
-            self._update_dicom_list()
+            self._set_dicom_list()
 
     @property
     def image(self):
@@ -544,9 +544,9 @@ class DICOMImageReader:
                 filtered_dicom_slice_paths.append(path)
         return filtered_dicom_slice_paths
 
-    def _update_dicom_list(self, path: Optional[PathLike] = None):
+    def _set_dicom_list(self, path: Optional[PathLike] = None):
         """
-        Update the list paths to the DICOM slices.
+        Set the list of paths to the DICOM slices.
 
         Parameters
         ----------
@@ -587,7 +587,7 @@ class DICOMImageReader:
         """
         if path is not None:
             self.path = path
-            self._update_dicom_list(path=path)
+            self._set_dicom_list(path=path)
 
         # read DICOM sequence
         try:
@@ -630,7 +630,7 @@ class DICOMImageReader:
         """
         if path is not None:
             self.path = path
-            self._update_dicom_list(path=path)
+            self._set_dicom_list(path=path)
 
         files = [pydicom.dcmread(dcm) for dcm in self.dicom_slice_paths]
 
