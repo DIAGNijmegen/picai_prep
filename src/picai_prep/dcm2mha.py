@@ -370,6 +370,10 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
                               *[f'\t{key}: {value}' for key, value in summary.items()],
                               '', *serie_log, ''])
 
+    def cleanup(self):
+        self.series = None
+        super().cleanup()
+
     def __repr__(self):
         return f'Case({self.subject_id})'
 
