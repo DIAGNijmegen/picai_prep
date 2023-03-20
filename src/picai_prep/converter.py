@@ -56,9 +56,6 @@ class Case(ABC):
         raise NotImplementedError()
 
     def cleanup(self):
-        self.patient_id = None
-        self.study_id = None
-        self.error = None
         self._log = None
         gc.collect()
 
