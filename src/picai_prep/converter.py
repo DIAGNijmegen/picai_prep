@@ -1,3 +1,4 @@
+import gc
 import logging
 import traceback
 from abc import ABC, abstractmethod
@@ -34,8 +35,7 @@ class Case(ABC):
             self.convert_item(**kwargs)
         except Exception as e:
             self.invalidate(e)
-        finally:
-            return self.compile_log()
+        self.compile_log()
 
     @property
     def subject_id(self):
@@ -55,6 +55,10 @@ class Case(ABC):
     @abstractmethod
     def compile_log(self):
         raise NotImplementedError()
+
+    def cleanup(self):
+        self._log = None
+        gc.collect()
 
     def __repr__(self):
         return f'Case({self.subject_id})'
@@ -81,12 +85,13 @@ class Converter:
             with ThreadPoolExecutor(max_workers=num_threads) as pool:
                 futures = {pool.submit(case.convert, **parameters): case for case in cases}
                 for future in tqdm(as_completed(futures), total=len(cases)):
+                    case = futures[future]
                     case_log = future.result()
                     if case_log:
                         logging.info(case_log)
-                    case = futures[future]
                     if case.skip_conversion:
                         num_cases_skipped += 1
+                    case.cleanup()
         else:
             for case in tqdm(cases):
                 case_log = case.convert(**parameters)
@@ -94,6 +99,7 @@ class Converter:
                     logging.info(case_log)
                 if case.skip_conversion:
                     num_cases_skipped += 1
+                case.cleanup()
 
         logging.info(f'Skipped conversion of {num_cases_skipped}')
         end_time = datetime.now()

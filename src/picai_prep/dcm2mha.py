@@ -16,6 +16,7 @@ import logging
 import os
 import re
 import tempfile
+import traceback
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -296,7 +297,10 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
                 except Exception as e:
                     serie.write_log(
                         f'Skipped "{mapping}", reading DICOM sequence failed, maybe corrupt data? Error: {e}')
-                    logging.error(str(e))
+                    if self.settings.verbose >= 2:
+                        logging.error(traceback.format_exc())
+                    else:
+                        logging.error(str(e))
                     errors.append(i)
                 else:
                     if self.settings.scan_postprocess_func is not None:
@@ -365,6 +369,10 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
                               'Errors found:',
                               *[f'\t{key}: {value}' for key, value in summary.items()],
                               '', *serie_log, ''])
+
+    def cleanup(self):
+        self.series = None
+        super().cleanup()
 
     def __repr__(self):
         return f'Case({self.subject_id})'
@@ -496,7 +504,7 @@ class DICOMImageReader:
             if self.verify_dicom_filenames:
                 self._verify_dicom_filenames()
         else:
-            self._update_dicom_list()
+            self._set_dicom_list()
 
     @property
     def image(self):
@@ -520,9 +528,37 @@ class DICOMImageReader:
         try:
             return self._read_image_sitk(path=path)
         except RuntimeError:
+            # try again with pydicom
             return self._read_image_pydicom(path=path)
 
-    def _update_dicom_list(self, path: Optional[PathLike] = None):
+    @staticmethod
+    def _filter_localizer_slices(dicom_slice_paths: List[str]) -> List[str]:
+        """
+        Filter out localizer slices (slices with ImageType == LOCALIZER).
+        WARNING: this is slow and a heuristic that may not work for all datasets.
+        """
+        filtered_dicom_slice_paths = []
+        for path in dicom_slice_paths:
+            reader = sitk.ImageFileReader()
+            reader.SetFileName(str(path))
+            reader.LoadPrivateTagsOn()
+            reader.ReadImageInformation()
+            image_type = reader.GetMetaData("0008|0008")
+            if "LOCALIZER" not in image_type.upper():
+                filtered_dicom_slice_paths.append(path)
+        return filtered_dicom_slice_paths
+
+    def _set_dicom_list(self, path: Optional[PathLike] = None):
+        """
+        Set the list of paths to the DICOM slices.
+
+        Parameters
+        ----------
+        path: PathLike
+            path to the folder containing the DICOM slices. The folder should contain the DICOM slices,
+            or a zip file named "dicom.zip" containing the DICOM slices.
+            default: self.path
+        """
         if path is None:
             path = self.path
 
@@ -535,7 +571,10 @@ class DICOMImageReader:
         if self.verify_dicom_filenames:
             self._verify_dicom_filenames()
 
-    def _read_image_sitk(self, path: Optional[PathLike] = None) -> sitk.Image:
+    def _read_image_sitk(
+        self,
+        path: Optional[PathLike] = None,
+    ) -> sitk.Image:
         """
         Read image using SimpleITK.
 
@@ -552,11 +591,17 @@ class DICOMImageReader:
         """
         if path is not None:
             self.path = path
-            self._update_dicom_list(path=path)
+            self._set_dicom_list(path=path)
 
         # read DICOM sequence
-        self.series_reader.SetFileNames(self.dicom_slice_paths)
-        image: sitk.Image = self.series_reader.Execute()
+        try:
+            self.series_reader.SetFileNames(self.dicom_slice_paths)
+            image: sitk.Image = self.series_reader.Execute()
+        except RuntimeError:
+            # try again while removing localizer slices
+            self.dicom_slice_paths = self._filter_localizer_slices(self.dicom_slice_paths)
+            self.series_reader.SetFileNames(self.dicom_slice_paths)
+            image: sitk.Image = self.series_reader.Execute()
 
         # read metadata from the last DICOM slice
         reader = sitk.ImageFileReader()
@@ -589,7 +634,7 @@ class DICOMImageReader:
         """
         if path is not None:
             self.path = path
-            self._update_dicom_list(path=path)
+            self._set_dicom_list(path=path)
 
         files = [pydicom.dcmread(dcm) for dcm in self.dicom_slice_paths]
 
@@ -672,6 +717,7 @@ class DICOMImageReader:
             metadata[name] = ref.GetMetaData(key).strip() if ref.HasMetaDataKey(key) else ''
 
         metadata["spacing_inplane"] = ref.GetSpacing()[0:2]
+        metadata["image_direction"] = ref.GetDirection()
         return metadata
 
     def _collect_metadata_pydicom(self, ds: "pydicom.dataset.Dataset") -> Dict[str, str]:
