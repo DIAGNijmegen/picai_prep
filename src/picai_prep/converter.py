@@ -1,3 +1,4 @@
+import gc
 import logging
 import traceback
 from abc import ABC, abstractmethod
@@ -33,8 +34,7 @@ class Case(ABC):
             self.convert_item(**kwargs)
         except Exception as e:
             self.invalidate(e)
-        finally:
-            return self.compile_log()
+        self.compile_log()
 
     @property
     def subject_id(self):
@@ -54,6 +54,10 @@ class Case(ABC):
     @abstractmethod
     def compile_log(self):
         raise NotImplementedError()
+
+    def cleanup(self):
+        self._log = None
+        gc.collect()
 
     def __repr__(self):
         return f'Case({self.subject_id})'
@@ -82,11 +86,14 @@ class Converter:
                     case_log = future.result()
                     if case_log:
                         logging.info(case_log)
+                    case = futures[future]
+                    case.cleanup()
         else:
             for case in tqdm(cases):
                 case_log = case.convert(**parameters)
                 if case_log:
                     logging.info(case_log)
+                case.cleanup()
 
         end_time = datetime.now()
         logging.info(f'{title} conversion ended at {end_time.isoformat()}\n\t(runtime {end_time - start_time})')
