@@ -16,6 +16,7 @@ class Case(ABC):
     patient_id: str
     study_id: str
     error: Optional[Exception] = None
+    skip_conversion: bool = False
     _log: List[str] = field(default_factory=list)
 
     @abstractmethod
@@ -78,22 +79,28 @@ class Converter:
     def _convert(title: str, cases: List[Case], parameters: Dict[str, Any], num_threads: int = 4):
         start_time = datetime.now()
         logging.info(f'{title} conversion started at {start_time.isoformat()}\n')
+        num_cases_skipped = 0
 
         if num_threads >= 2:
             with ThreadPoolExecutor(max_workers=num_threads) as pool:
                 futures = {pool.submit(case.convert, **parameters): case for case in cases}
                 for future in tqdm(as_completed(futures), total=len(cases)):
+                    case = futures[future]
                     case_log = future.result()
                     if case_log:
                         logging.info(case_log)
-                    case = futures[future]
+                    if case.skip_conversion:
+                        num_cases_skipped += 1
                     case.cleanup()
         else:
             for case in tqdm(cases):
                 case_log = case.convert(**parameters)
                 if case_log:
                     logging.info(case_log)
+                if case.skip_conversion:
+                    num_cases_skipped += 1
                 case.cleanup()
 
+        logging.info(f'Skipped conversion of {num_cases_skipped}')
         end_time = datetime.now()
         logging.info(f'{title} conversion ended at {end_time.isoformat()}\n\t(runtime {end_time - start_time})')
