@@ -772,6 +772,9 @@ class DICOMImageReader:
         common_prefix = os.path.commonprefix(filenames)
         if common_prefix:
             filenames = [fn.replace(common_prefix, "") for fn in filenames]
+        common_postfix = os.path.commonprefix([fn[::-1] for fn in filenames])[::-1]
+        if common_postfix:
+            filenames = [fn.replace(common_postfix, "") for fn in filenames]
 
         # extract numbers from filenames
         filename_digits = [(''.join(c for c in str(fn) if c.isdigit())) for fn in filenames]
