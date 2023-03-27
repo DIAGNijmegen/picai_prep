@@ -774,10 +774,15 @@ class DICOMImageReader:
             filenames = [fn.replace(common_prefix, "") for fn in filenames]
 
         # extract numbers from filenames
-        vdcms = [int(''.join(c for c in str(fn) if c.isdigit())) for fn in filenames]
+        filename_digits = [(''.join(c for c in str(fn) if c.isdigit())) for fn in filenames]
+        filename_digits = [int(d) for d in filename_digits if d]
+        if len(filename_digits) < 2:
+            # either no numbers in the filenames, or only one file
+            return True
+
         missing_slices = False
-        for num in range(min(vdcms), max(vdcms) + 1):
-            if num not in vdcms:
+        for num in range(min(filename_digits), max(filename_digits) + 1):
+            if num not in filename_digits:
                 missing_slices = True
                 break
         if missing_slices:
