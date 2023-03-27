@@ -762,8 +762,8 @@ class DICOMImageReader:
         """
         Verify DICOM filenames have increasing numbers, with no gaps
 
-        Common prefixes are removed from the filenames before checking the numbers.
-        This allows for filenames like "1.2.86.1.dcm", ..., "1.2.86.12.dcm" to be verified.
+        Common prefixes are removed from the filenames before checking the numbers,
+        this allows to verify filenames like "1.2.86.1.dcm", ..., "1.2.86.12.dcm".
         """
         if filenames is None:
             filenames = [os.path.basename(dcm) for dcm in self.dicom_slice_paths]
