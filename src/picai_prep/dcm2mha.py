@@ -759,12 +759,22 @@ class DICOMImageReader:
         return tuple(self.get_orientation_matrix(ds).transpose().flatten())
 
     def _verify_dicom_filenames(self, filenames: Optional[List[PathLike]] = None) -> bool:
-        """Verify DICOM filenames have increasing numbers, with no gaps"""
+        """
+        Verify DICOM filenames have increasing numbers, with no gaps
+
+        Common prefixes are removed from the filenames before checking the numbers.
+        This allows for filenames like "1.2.86.1.dcm", ..., "1.2.86.12.dcm" to be verified.
+        """
         if filenames is None:
             filenames = [os.path.basename(dcm) for dcm in self.dicom_slice_paths]
 
-        vdcms = [d.rsplit('.', 1)[0] for d in filenames]
-        vdcms = [int(''.join(c for c in d if c.isdigit())) for d in vdcms]
+        # remove common prefixes
+        common_prefix = os.path.commonprefix(filenames)
+        if common_prefix:
+            filenames = [fn.replace(common_prefix, "") for fn in filenames]
+
+        # extract numbers from filenames
+        vdcms = [int(''.join(c for c in str(fn) if c.isdigit())) for fn in filenames]
         missing_slices = False
         for num in range(min(vdcms), max(vdcms) + 1):
             if num not in vdcms:
