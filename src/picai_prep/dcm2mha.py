@@ -286,7 +286,10 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
         patient_dir = output_dir / self.patient_id
         for i, serie in enumerate(self.valid_series):
             for mapping in serie.mappings:
-                dst_path = patient_dir / f"{self.subject_id}_{mapping}.mha"
+                mapping_save_name = mapping
+                if ":" in mapping_save_name:
+                    mapping_save_name = mapping_save_name.split(':')[0]
+                dst_path = patient_dir / f"{self.subject_id}_{mapping_save_name}.mha"
                 if dst_path.exists():
                     serie.write_log(f'Skipped "{mapping}", already exists: {dst_path}')
                     skips.append(i)
