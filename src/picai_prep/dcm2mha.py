@@ -157,18 +157,18 @@ class Series:
             raise NoMappingsApplyError()
         self.write_log(f'Applied mappings [{", ".join(self.mappings)}]')
 
-    def write_log(self, msg: str):
+    def write_log(self, msg: str) -> None:
         self._log.append(msg)
 
-    def compile_log(self):
+    def compile_log(self) -> str:
         log = [f'\t{item}' for item in self._log]
         return '\n'.join([self.path.as_posix()] + log + [f'\tFATAL: {self.error}\n' if not self.is_valid else ''])
 
     @property
-    def is_valid(self):
+    def is_valid(self) -> bool:
         return self.error is None
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Series({self.path.name})"
 
 
@@ -190,7 +190,7 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
         self.resolve_duplicates()
         self.process_and_write(output_dir)
 
-    def initialize(self):
+    def initialize(self) -> None:
         self.write_log(f'Importing {plural(len(self.paths), "serie")}')
 
         full_paths = set()
@@ -209,7 +209,7 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
         if not self.is_valid:
             self.invalidate()
 
-    def extract_metadata(self):
+    def extract_metadata(self) -> None:
         self.write_log(f'Extracting metadata from {plural(len(self.valid_series), "serie")}')
         errors = []
 
@@ -224,7 +224,7 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
 
         self.write_log(f'\t({plural(len(errors), "error")}{f" {errors}" if len(errors) > 0 else ""})')
 
-    def apply_mappings(self):
+    def apply_mappings(self) -> None:
         self.write_log(f'Applying mappings to {len(self.valid_series)} series')
         errors = []
 
@@ -241,7 +241,7 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
 
         self.write_log(f'\t({plural(len(errors), "error")}{f" {errors}" if len(errors) > 0 else ""})')
 
-    def resolve_duplicates(self):
+    def resolve_duplicates(self) -> None:
         self.write_log(f'Resolving duplicates between {plural(len(self.valid_series), "serie")}')
 
         # define tiebreakers, which should have: name, value_func, pick_largest
@@ -278,7 +278,7 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
                                 serie.write_log(f'Removed by {name} tiebreaker from "{mapping}"')
                                 series.remove(serie)
 
-    def process_and_write(self, output_dir: Path):
+    def process_and_write(self, output_dir: Path) -> None:
         total = sum([len(serie.mappings) for serie in self.valid_series])
         self.write_log(f'Writing {plural(total, "serie")}')
         errors, skips = [], []
@@ -318,7 +318,7 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
                        f'\t({plural(len(errors), "error")}{f" {errors}" if len(errors) > 0 else ""}, '
                        f'{len(skips)} skipped{f" {skips}" if len(skips) > 0 else ""})')
 
-    def invalidate(self, error: Exception = None):
+    def invalidate(self, error: Exception = None) -> None:
         if error is None:
             error = CriticalErrorInSiblingError()
         for serie in self.valid_series:
@@ -329,17 +329,17 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
         return f"{self.patient_id}_{self.study_id}"
 
     @property
-    def is_valid(self):
+    def is_valid(self) -> bool:
         return all([serie.is_valid for serie in self.series])
 
     @property
-    def valid_series(self):
+    def valid_series(self) -> List[Series]:
         return [item for item in self.series if item.is_valid]
 
-    def write_log(self, msg: str):
+    def write_log(self, msg: str) -> None:
         self._log.append(msg)
 
-    def compile_log(self):
+    def compile_log(self) -> str:
         """For questions: Stan.Noordman@Radboudumc.nl"""
         if self.settings.verbose == 0:
             return
@@ -370,11 +370,11 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
                               *[f'\t{key}: {value}' for key, value in summary.items()],
                               '', *serie_log, ''])
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         self.series = None
         super().cleanup()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'Case({self.subject_id})'
 
 
@@ -452,7 +452,7 @@ class Dicom2MHAConverter(Converter):
             for (patient_id, study_id), paths in cases.items()
         ]
 
-    def convert(self):
+    def convert(self) -> None:
         self._convert(
             title='Dicom2MHA',
             cases=self.cases,
@@ -507,13 +507,13 @@ class DICOMImageReader:
             self._set_dicom_list()
 
     @property
-    def image(self):
+    def image(self) -> sitk.Image:
         if self._image is None:
             self._image = self._read_image()
         return self._image
 
     @property
-    def metadata(self):
+    def metadata(self) -> Dict[str, str]:
         if self._metadata is None:
             self._metadata = self._read_metadata()
         return self._metadata
@@ -548,7 +548,7 @@ class DICOMImageReader:
                 filtered_dicom_slice_paths.append(path)
         return filtered_dicom_slice_paths
 
-    def _set_dicom_list(self, path: Optional[PathLike] = None):
+    def _set_dicom_list(self, path: Optional[PathLike] = None) -> None:
         """
         Set the list of paths to the DICOM slices.
 
@@ -774,5 +774,5 @@ class DICOMImageReader:
             raise MissingDICOMFilesError(self.path)
         return True
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'DICOMImageReader({self.path})'
