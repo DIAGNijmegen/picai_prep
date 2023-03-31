@@ -20,8 +20,9 @@ import SimpleITK as sitk
 
 from picai_prep.converter import Case
 from picai_prep.data_utils import PathLike, atomic_image_write
-from picai_prep.dcm2mha import (Dicom2MHACase, Dicom2MHAConverter,
-                                DICOMImageReader)
+from picai_prep.imagereader import DICOMImageReader
+from picai_prep.dcm2mha.case import Dicom2MHACase
+from picai_prep.dcm2mha.dcm2mha import Dicom2MHAConverter
 from picai_prep.exceptions import DCESeriesNotFoundError
 
 
@@ -127,33 +128,3 @@ class Dicom2DCECase(Dicom2MHACase):
 
         # construct target filename and save to file
         atomic_image_write(joined_images, dst_path)
-
-
-class Dicom2DCEConverter(Dicom2MHAConverter):
-    def __init__(
-        self,
-        input_dir: PathLike,
-        output_dir: PathLike,
-        dcm2dce_settings: Union[PathLike, Dict] = None,
-        case_class: Case = Dicom2DCECase,
-    ):
-        """
-        Convert DCE scans from a DICOM Archive to a single 4D MHA scan.
-        Experimental.
-        """
-        super().__init__(
-            input_dir=input_dir,
-            output_dir=output_dir,
-            dcm2mha_settings=dcm2dce_settings,
-            case_class=case_class
-        )
-
-    def convert(self):
-        self._convert(
-            title='Dicom2DCE',
-            cases=self.cases,
-            parameters={
-                'output_dir': self.output_dir
-            },
-            num_threads=self.settings.num_threads,
-        )
