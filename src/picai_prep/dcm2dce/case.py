@@ -22,7 +22,7 @@ from picai_prep.converter import Case
 from picai_prep.data_utils import PathLike, atomic_image_write
 from picai_prep.imagereader import DICOMImageReader
 from picai_prep.dcm2mha.case import Dicom2MHACase
-from picai_prep.dcm2mha.dcm2mha import Dicom2MHAConverter
+from picai_prep.dcm2mha.converter import Dicom2MHAConverter
 from picai_prep.exceptions import DCESeriesNotFoundError
 
 

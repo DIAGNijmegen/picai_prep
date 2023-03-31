@@ -15,7 +15,7 @@ from typing import Dict, Union
 
 from picai_prep.converter import Case
 from picai_prep.data_utils import PathLike
-from picai_prep.dcm2mha.dcm2mha import Dicom2MHAConverter
+from picai_prep.dcm2mha.converter import Dicom2MHAConverter
 from picai_prep.dcm2dce.case import Dicom2DCECase
 
 
