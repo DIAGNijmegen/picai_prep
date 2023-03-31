@@ -30,10 +30,10 @@ import SimpleITK as sitk
 
 from picai_prep.converter import Case, Converter
 from picai_prep.data_utils import PathLike, atomic_image_write
-from picai_prep.errors import (ArchiveItemPathNotFoundError,
-                               CriticalErrorInSiblingError,
-                               MissingDICOMFilesError, NoMappingsApplyError,
-                               UnreadableDICOMError)
+from picai_prep.exceptions import (ArchiveItemPathNotFoundError,
+                                   CriticalErrorInSiblingError,
+                                   MissingDICOMFilesError, NoMappingsApplyError,
+                                   UnreadableDICOMError)
 from picai_prep.utilities import dcm2mha_schema, dicom_tags, plural
 
 Metadata = Dict[str, str]
