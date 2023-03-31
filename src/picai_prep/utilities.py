@@ -26,17 +26,6 @@ def plural(num: int, word: str):
     return f"{num} {word}{'' if num == 1 else 's'}"
 
 
-def make_sitk_readers() -> Tuple[sitk.ImageFileReader, sitk.ImageSeriesReader]:
-    """Initialise SimpleITK series and file readers"""
-    series_reader = sitk.ImageSeriesReader()
-    file_reader = sitk.ImageFileReader()
-
-    for reader in (series_reader, file_reader):
-        reader.LoadPrivateTagsOn()
-
-    return file_reader, series_reader
-
-
 __all__ = [
     # Explicitly expose these functions for easier imports
     "dcm2mha_schema",
