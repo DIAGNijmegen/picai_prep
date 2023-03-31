@@ -12,42 +12,20 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 import json
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
+from typing import Dict, List, Union
 
 import jsonschema
-import SimpleITK as sitk
 
 from picai_prep.converter import Converter
 from picai_prep.data_utils import PathLike
 from picai_prep.utilities import dcm2mha_schema
-from picai_prep.dcm2mha.case import Dicom2MHACase
+from picai_prep.dcm2mha.case import Dicom2MHACase, Case
+from picai_prep.dcm2mha.settings import Dicom2MHASettings
 
 Metadata = Dict[str, str]
 Mapping = Dict[str, List[str]]
 Mappings = Dict[str, Mapping]
-
-
-@dataclass
-class Dicom2MHASettings:
-    mappings: Dict[str, Dict[str, List[str]]]
-    verify_dicom_filenames: bool = True
-    allow_duplicates: bool = False
-    metadata_match_func: Optional[Callable[[Metadata, Mappings], bool]] = None
-    values_match_func: Union[str, Callable[[str, str], bool]] = "lower_strip_equals"
-    scan_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
-    num_threads: int = 4
-    verbose: int = 1
-
-    def __post_init__(self):
-        # Validate the mappings
-        for mapping_name, mapping in self.mappings.items():
-            for key, values in mapping.items():
-                if not isinstance(values, list):
-                    raise ValueError(f'Mapping {mapping_name} has non-list values for key {key}: {values}')
-                if not all([isinstance(value, str) for value in values]):
-                    raise ValueError(f'Mapping {mapping_name} has non-string value for key {key}: {values}')
 
 
 class Dicom2MHAConverter(Converter):

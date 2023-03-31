@@ -21,6 +21,7 @@ from picai_prep.converter import Case
 from picai_prep.data_utils import atomic_image_write
 from picai_prep.preprocessing import Sample
 from picai_prep.utilities import plural
+from picai_prep.mha2nnunet.settings import MHA2nnUNetSettings
 
 
 @dataclass

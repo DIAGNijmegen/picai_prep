@@ -18,7 +18,7 @@ import shutil
 
 import SimpleITK as sitk
 from numpy.testing import assert_allclose
-from picai_prep.dcm2dce import Dicom2DCEConverter
+from picai_prep import Dicom2DCEConverter
 
 
 def test_dce_conversion(

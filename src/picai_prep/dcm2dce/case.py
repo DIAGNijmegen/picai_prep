@@ -14,15 +14,13 @@
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Union
+from typing import Dict, List
 
 import SimpleITK as sitk
 
-from picai_prep.converter import Case
 from picai_prep.data_utils import PathLike, atomic_image_write
 from picai_prep.imagereader import DICOMImageReader
 from picai_prep.dcm2mha.case import Dicom2MHACase
-from picai_prep.dcm2mha.converter import Dicom2MHAConverter
 from picai_prep.exceptions import DCESeriesNotFoundError
 
 

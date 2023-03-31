@@ -25,6 +25,7 @@ from picai_prep.exceptions import (CriticalErrorInSiblingError,
                                    UnreadableDICOMError)
 from picai_prep.utilities import plural
 from picai_prep.dcm2mha.series import Series
+from picai_prep.dcm2mha.settings import Dicom2MHASettings
 from picai_prep.case import Case
 from picai_prep.imagereader import DICOMImageReader
 
