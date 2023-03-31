@@ -22,6 +22,7 @@ Metadata = Dict[str, str]
 Mapping = Dict[str, List[str]]
 Mappings = Dict[str, Mapping]
 
+
 @dataclass
 class Series:
     path: Path
@@ -56,9 +57,9 @@ class Series:
 
     @staticmethod
     def metadata_matches(
-        metadata: Metadata,
-        mapping: Mapping,
-        values_match_func: Callable[[str, str], bool],
+            metadata: Metadata,
+            mapping: Mapping,
+            values_match_func: Callable[[str, str], bool],
     ) -> bool:
         """
         Determine whether Series' metadata matches the mapping.
@@ -77,10 +78,10 @@ class Series:
         return True
 
     def apply_mappings(
-        self,
-        mappings: Mappings,
-        metadata_match_func: Optional[Callable[[Metadata, Mappings], bool]] = None,
-        values_match_func: Optional[Union[Callable[[str, str], bool], str]] = "lower_strip_equals",
+            self,
+            mappings: Mappings,
+            metadata_match_func: Optional[Callable[[Metadata, Mappings], bool]] = None,
+            values_match_func: Optional[Union[Callable[[str, str], bool], str]] = "lower_strip_equals",
     ) -> None:
         """
         Apply mappings to the series

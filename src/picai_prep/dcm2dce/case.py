@@ -57,6 +57,7 @@ class Dicom2DCECase(Dicom2MHACase):
         patient_dir.mkdir(parents=True, exist_ok=True)
 
         # check if file already exists (for joined MHA, i.e., 4D)
+        dst_path = None
         if not return_image:
             dst_path = patient_dir / f"{self.subject_id}_dce.mha"
             if dst_path.exists():

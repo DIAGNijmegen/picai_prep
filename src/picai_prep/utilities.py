@@ -11,12 +11,6 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-
-
-from typing import Tuple
-
-import SimpleITK as sitk
-
 from picai_prep.resources.dcm2mha_schema import dcm2mha_schema
 from picai_prep.resources.dicom_tags import dicom_tags
 from picai_prep.resources.mha2nnunet_schema import mha2nnunet_schema

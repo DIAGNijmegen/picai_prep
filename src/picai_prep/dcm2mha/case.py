@@ -33,6 +33,7 @@ Metadata = Dict[str, str]
 Mapping = Dict[str, List[str]]
 Mappings = Dict[str, Mapping]
 
+
 @dataclass
 class _Dicom2MHACaseBase:
     input_dir: Path
@@ -157,7 +158,8 @@ class Dicom2MHACase(Case, _Dicom2MHACaseBase):
                     continue
 
                 try:
-                    image = DICOMImageReader(serie.path, verify_dicom_filenames=self.settings.verify_dicom_filenames).image
+                    image = DICOMImageReader(serie.path,
+                                             verify_dicom_filenames=self.settings.verify_dicom_filenames).image
                 except Exception as e:
                     serie.write_log(
                         f'Skipped "{mapping}", reading DICOM sequence failed, maybe corrupt data? Error: {e}')
