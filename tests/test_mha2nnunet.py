@@ -28,7 +28,7 @@ from numpy.testing import assert_allclose
 from picai_prep.data_utils import PathLike
 from picai_prep.examples.mha2nnunet import picai_archive
 from picai_prep.mha2nnunet.converter import MHA2nnUNetConverter
-from picai_prep.preprocessing import resample_to_reference_scan
+from picai_prep.mha2nnunet.preprocessing import resample_to_reference_scan
 
 
 def test_mha2nnunet(

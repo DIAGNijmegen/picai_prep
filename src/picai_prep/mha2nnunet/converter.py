@@ -20,7 +20,7 @@ import jsonschema
 
 from picai_prep.converter import Converter
 from picai_prep.data_utils import PathLike
-from picai_prep.preprocessing import PreprocessingSettings
+from picai_prep.mha2nnunet.preprocessing import PreprocessingSettings
 from picai_prep.utilities import mha2nnunet_schema
 from picai_prep.mha2nnunet.case import MHA2nnUNetCase
 from picai_prep.mha2nnunet.settings import MHA2nnUNetSettings
