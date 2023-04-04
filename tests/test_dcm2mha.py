@@ -23,10 +23,11 @@ import pytest
 import SimpleITK as sitk
 from numpy.testing import assert_allclose
 
+from picai_prep.dcm2mha import Dicom2MHAConverter
 from picai_prep.dcm2mha.case import Dicom2MHACase
-from picai_prep.dcm2mha.converter import Dicom2MHAConverter
 from picai_prep.dcm2mha.settings import Dicom2MHASettings
-from picai_prep.examples.dcm2mha.sample_archive import generate_dcm2mha_settings
+from picai_prep.examples.dcm2mha.sample_archive import \
+    generate_dcm2mha_settings
 from picai_prep.imagereader import DICOMImageReader
 
 
