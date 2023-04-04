@@ -1,20 +1,21 @@
 # https://learnxinyminutes.com/docs/yaml/
 
-# Number of threads for multiprocessing
-num_threads: int = 4
+# Number of threads for multiprocessing (0: disable multiprocessing, null: all threads)
+num_threads: null
 
 # Logging verbosity level 0-2
 # 0: No log
-# 1: ...
-# 2: ...
+# 1: Minimal logging: summaries and errors
+# 2: Full (debug) logging
 verbose: 1
 
 # Add additional DICOM tags not found in dicom_tags.py
-additional_tags:
-    0020|0020: "PatientOrientation"
+database:
+    additional_tags:
+        0020|0020: "PatientOrientation"
 
 # Database mapping options
-database:
+dcm2mha_mapping:
     # each key mapping here results in selected dcm files to be converted to out_dir given the path (out_dir / path)
     # either a map of { key: list of str } ...
     - mapping:
@@ -46,9 +47,8 @@ database:
             ["lower", "strip", "regex"]
 
 
-
 # dcm2mha conversion options
-dcm2mha:
+dcm2mha_conversion:
     # Verify DICOM filenames have increasing numbers, with no gaps
     verify_dicom_filenames: True
     # Rather than using a tiebreaker for duplicate DICOM files, append a index suffix to the filename
@@ -59,6 +59,7 @@ dcm2mha:
     values_match_func: None
     # write usage here
     scan_postprocess_func: None
+
 
 # mha2nnunet conversion options
 mha2nnunet:
