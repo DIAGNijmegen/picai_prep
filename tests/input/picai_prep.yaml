@@ -11,58 +11,73 @@ verbose: 1
 
 # Add additional DICOM tags not found in dicom_tags.py
 additional_tags:
-  0020|0017: "SomeSpecialDICOMTag"
+    0020|0020: "PatientOrientation"
 
 # Database mapping options
 database:
-  # each key mapping here results in selected dcm files to be converted to out_dir given the path (out_dir / path)
-  # either a map of { key: list of str } ...
-  - mapping:
-      path: "/{PatientID}/{StudyInstanceUID}/{SeriesInstanceUID}_adc"
-      query:
-        SeriesDescription:
-          ["ep2d_diff_tra_DYNDIST_MIX_ADC", "ep2d_diff_tra_DYNDIST_ADC"]
-  # or a SQL SELECT query, use `FROM DICOM`
-  # could just allow WHERE, always prefacing the query value with "SELECT * FROM DICOMS " + query
-  - mapping:
-      path: "/{PatientID}/{StudyInstanceUID}/{SeriesInstanceUID}_hbv"
-      query: >-
-        SELECT 
-          SeriesDescription 
-        FROM DICOM WHERE 
-          SeriesDescription REGEXP "ep2d_diff_tra_DYN.*"
-    
+    # each key mapping here results in selected dcm files to be converted to out_dir given the path (out_dir / path)
+    # either a map of { key: list of str } ...
+    - mapping:
+        path: "{PatientID}/{StudyInstanceUID}/{SeriesInstanceUID}_tracew.mha"
+        filter:
+            ImageType: [
+                "DERIVED.PRIMARY.DIFFUSION.TRACEW",
+                "DERIVED.PRIMARY.DIFFUSION.NONE.TRACEW.DIS2D",
+                "DERIVED.PRIMARY.DIFFUSION.TRACEW.DIS2D",
+                "DERIVED.PRIMARY.DIFFUSION.NONE.TRACEW.ND"
+            ]
+
+    # or a SQL SELECT query. Queries are always prefaced with `SELECT * FROM DICOMS WHERE`.
+    - mapping:
+        path: "{PatientID}/{StudyInstanceUID}/{SeriesInstanceUID}_adc.mha"
+        query: SeriesDescription REGEXP ".*ADC.*" OR SequenceName REGEXP ".*ADC.*"
+
+    # paths can be different extensions too (e.g., .nii.gz)
+    # filters can have regex too
+    # `image_direction` is computed while building the database, and is "transverse", "sagittal" or "coronal"
+    - mapping:
+        path: "{PatientID}/{StudyInstanceUID}/{SeriesInstanceUID}_t2w.nii.gz"
+        filter:
+            SeriesDescription:
+                ["t2.*tse", "tse.*t2"]
+            image_direction:
+                ["transverse"]
+        filter_options:
+            ["lower", "strip", "regex"]
+
+
+
 # dcm2mha conversion options
 dcm2mha:
-  # Verify DICOM filenames have increasing numbers, with no gaps
-  verify_dicom_filenames: True
-  # Rather than using a tiebreaker for duplicate DICOM files, append a index suffix to the filename
-  allow_duplicates: False
-  # due to SQL, this is probably deprecated
-  metadata_match_func: None
-  # due to SQL, this is probably deprecated
-  values_match_func: None
-  # write usage here
-  scan_postprocess_func: None
+    # Verify DICOM filenames have increasing numbers, with no gaps
+    verify_dicom_filenames: True
+    # Rather than using a tiebreaker for duplicate DICOM files, append a index suffix to the filename
+    allow_duplicates: False
+    # due to SQL, this is probably deprecated
+    metadata_match_func: None
+    # due to SQL, this is probably deprecated
+    values_match_func: None
+    # write usage here
+    scan_postprocess_func: None
 
 # mha2nnunet conversion options
 mha2nnunet:
-  # write usage here
-  preprocessing:
-    matrix_size: Optional[Iterable[int]] = None
-    spacing: Optional[Iterable[float]] = None
-    physical_size: Optional[Iterable[float]] = None
-    crop_only: bool = False
-    align_segmentation: Optional[sitk.Image] = None
-  # target directory of converted scans
-  scans_dirname: imagesTr
-  # target directory of converted annotations
-  annotation_dirname: labelsTr
-  # write usage here
-  annotation_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
-  # write usage here
-  annotation_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
-  # write usage here
-  scan_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
-  # write usage here
-  scan_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
+    # write usage here
+    preprocessing:
+        matrix_size: Optional[Iterable[int]] = None
+        spacing: Optional[Iterable[float]] = None
+        physical_size: Optional[Iterable[float]] = None
+        crop_only: bool = False
+        align_segmentation: Optional[sitk.Image] = None
+    # target directory of converted scans
+    scans_dirname: imagesTr
+    # target directory of converted annotations
+    annotation_dirname: labelsTr
+    # write usage here
+    annotation_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
+    # write usage here
+    annotation_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
+    # write usage here
+    scan_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
+    # write usage here
+    scan_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
