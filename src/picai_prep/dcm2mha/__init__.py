@@ -14,8 +14,10 @@
 
 
 from picai_prep.dcm2mha.converter import Dicom2MHAConverter
+from picai_prep.imagereader import DICOMImageReader
 
 __all__ = [
       # Explicitly expose these functions for easier imports
       "Dicom2MHAConverter",
+      "DICOMImageReader",
 ]
