@@ -17,7 +17,7 @@ from typing import Any, Callable, Dict, Optional
 import SimpleITK as sitk
 
 from picai_prep.data_utils import PathLike
-from picai_prep.mha2nnunet.preprocessing import PreprocessingSettings
+from picai_prep.preprocessing import PreprocessingSettings
 
 
 @dataclass
