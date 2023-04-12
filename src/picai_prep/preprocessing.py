@@ -28,7 +28,7 @@ except ImportError:  # pragma: no cover
 
 
 @dataclass
-class PreprocessingSettings():
+class PreprocessingSettings:
     """
     Preprocessing settings
     - matrix_size: number of voxels output image (z, y, x)

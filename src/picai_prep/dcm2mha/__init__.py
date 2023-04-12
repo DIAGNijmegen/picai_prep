@@ -11,18 +11,13 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-from picai_prep.resources.dcm2mha_schema import dcm2mha_schema
-from picai_prep.resources.dicom_tags import dicom_tags
-from picai_prep.resources.mha2nnunet_schema import mha2nnunet_schema
 
 
-def plural(num: int, word: str):
-    return f"{num} {word}{'' if num == 1 else 's'}"
-
+from picai_prep.dcm2mha.converter import Dicom2MHAConverter
+from picai_prep.imagereader import DICOMImageReader
 
 __all__ = [
-    # Explicitly expose these functions for easier imports
-    "dcm2mha_schema",
-    "dicom_tags",
-    "mha2nnunet_schema",
+      # Explicitly expose these functions for easier imports
+      "Dicom2MHAConverter",
+      "DICOMImageReader",
 ]
