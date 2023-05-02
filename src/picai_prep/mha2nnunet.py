@@ -268,13 +268,21 @@ class MHA2nnUNetConverter(Converter):
 
     def _prepare_dataset_paths(self):
         """Prepare paths to scans and annotation in nnU-Net dataset.json format"""
-        return [
-            {
-                "image": f"./{self.scans_out_dir.name}/{case.subject_id}.nii.gz",
-                "label": f"./{self.annotations_out_dir.name}/{case.subject_id}.nii.gz"
-            }
-            for case in self.valid_cases
-        ]
+        if self.annotations_out_dir is None:
+            return [
+                {
+                    "image": f"./{self.scans_out_dir.name}/{case.subject_id}.nii.gz"
+                }
+                for case in self.valid_cases
+            ]
+        else:
+            return [
+                {
+                    "image": f"./{self.scans_out_dir.name}/{case.subject_id}.nii.gz",
+                    "label": f"./{self.annotations_out_dir.name}/{case.subject_id}.nii.gz"
+                }
+                for case in self.valid_cases
+            ]
 
     def create_dataset_json(self, path: PathLike = 'dataset.json', is_testset: bool = False) -> Dict:
         """
