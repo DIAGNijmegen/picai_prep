@@ -144,6 +144,7 @@ archive = MHA2nnUNetConverter(
     mha2nnunet_settings="/path/to/mha2nnunet_settings.json",
 )
 archive.convert()
+archive.create_dataset_json()
 ```
 
 Or from the command line:
