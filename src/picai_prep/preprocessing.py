@@ -176,6 +176,7 @@ def crop_or_pad(
     size: Optional[Iterable[int]] = (20, 256, 256),
     physical_size: Optional[Iterable[float]] = None,
     crop_only: bool = False,
+    pad_only: bool = False,
 ) -> "Union[sitk.Image, npt.NDArray[Any]]":
     """
     Resize image by cropping and/or padding
@@ -208,6 +209,9 @@ def crop_or_pad(
             padding[i][0] = (size[i] - shape[i]) // 2
             padding[i][1] = size[i] - shape[i] - padding[i][0]
         else:
+            if pad_only:
+                continue
+
             # create slicer object to crop image
             idx_start = int(np.floor((shape[i] - size[i]) / 2.))
             idx_end = idx_start + size[i]
