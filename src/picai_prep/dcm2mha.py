@@ -661,7 +661,7 @@ class DICOMImageReader:
             # collect all available metadata (with DICOM tags, e.g. 0010|1010, as keys)
             value = self.get_pydicom_value(ref, key)
             if value is not None:
-                key = str(key).replace(", ", "|").replace("(", "").replace(")", "")
+                key = str(key).replace(",", "|").replace("(", "").replace(")", "").replace(" ", "")
                 image.SetMetaData(key, value)
 
         return image

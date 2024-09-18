@@ -93,7 +93,7 @@ def test_dcm2mha_commandline(
     ]
 
     # run command
-    subprocess.check_call(cmd, shell=(sys.platform == 'win32'))
+    subprocess.check_call(cmd, shell=(sys.platform == "win32"))
 
     # compare output
     for patient_id, subject_id in [
@@ -148,7 +148,7 @@ def test_resolve_duplicates(
 
     # check if duplicates were resolved
     matched_series = [serie for serie in case.valid_series if "t2w" in serie.mappings]
-    assert len(matched_series) == 1, 'More than one serie after resolving duplicates!'
+    assert len(matched_series) == 1, "More than one serie after resolving duplicates!"
 
 
 def test_value_match_contains(
@@ -185,7 +185,7 @@ def test_value_match_contains(
 
     # check if duplicates were resolved
     matched_series = [serie for serie in case.valid_series if "test" in serie.mappings]
-    assert len(matched_series) == 11, 'Empty lower_strip_contains should match all series!'
+    assert len(matched_series) == 11, "Empty lower_strip_contains should match all series!"
 
 
 def test_value_match_multiple_keys(
@@ -236,7 +236,7 @@ def test_value_match_multiple_keys(
 
     # check if duplicates were resolved
     matched_series = [serie for serie in case.valid_series if "test" in serie.mappings]
-    assert len(matched_series) == 3, 'Should find three diffusion scans!'
+    assert len(matched_series) == 3, "Should find three diffusion scans!"
 
 
 @pytest.mark.parametrize("input_dir", [
@@ -265,7 +265,9 @@ def test_image_reader(input_dir: str):
     metadata_sitk = {key: image_sitk.GetMetaData(key) for key in image_sitk.GetMetaDataKeys()}
     metadata_pydicom = {key: image_pydicom.GetMetaData(key) for key in image_pydicom.GetMetaDataKeys()}
     keys = set(metadata_pydicom.keys()) & set(metadata_sitk.keys())
-    assert len(keys) > 1, 'No metadata found!'
+    assert len(metadata_sitk.keys()) > 1, "No metadata found with SimpleITK!"
+    assert len(metadata_pydicom.keys()) > 1, "No metadata found with pydicom!"
+    assert len(keys) > 1, f"No metadata found! SimpleITK: {list(metadata_sitk.keys())}, pydicom: {list(metadata_pydicom.keys())}"
     assert {k: metadata_sitk[k] for k in keys} == {k: metadata_pydicom[k] for k in keys}
 
 
@@ -298,7 +300,9 @@ def test_image_reader_dicom_zip(input_dir: str):
 
     # compare metadata
     keys = set(metadata1.keys()) & set(metadata2.keys())
-    assert len(keys) > 1, 'No metadata found!'
+    assert len(metadata1.keys()) > 1, "No metadata found with first reader!"
+    assert len(metadata2.keys()) > 1, "No metadata found with second reader!"
+    assert len(keys) > 1, f"No metadata found! First reader: {list(metadata1.keys())}, second reader: {list(metadata2.keys())}"
     assert {k: metadata1[k] for k in keys} == {k: metadata2[k] for k in keys}
 
 
