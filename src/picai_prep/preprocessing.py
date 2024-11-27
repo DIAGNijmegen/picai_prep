@@ -36,12 +36,16 @@ class PreprocessingSettings():
     - physical_size: size in mm of the target image (z, y, x)
     - crop_only: only crop to specified size (i.e., do not pad)
     - align_segmentation: whether to align the scans using the centroid of the provided segmentation
+    - scan_interpolator: interpolation method for scans
+    - lbl_interpolator: interpolation method for labels
     """
     matrix_size: Optional[Iterable[int]] = None
     spacing: Optional[Iterable[float]] = None
     physical_size: Optional[Iterable[float]] = None
     crop_only: bool = False
     align_segmentation: Optional[sitk.Image] = None
+    scan_interpolator = sitk.sitkBSpline
+    lbl_interpolator = sitk.sitkNearestNeighbor
 
     def __post_init__(self):
         if self.physical_size is None and self.spacing is not None and self.matrix_size is not None:
@@ -73,6 +77,7 @@ def resample_img(
     out_spacing: Iterable[float] = (2.0, 2.0, 2.0),
     out_size: Optional[Iterable[int]] = None,
     is_label: bool = False,
+    interpolation = None,
     pad_value: Optional[Union[float, int]] = 0.,
 ) -> sitk.Image:
     """
@@ -107,7 +112,9 @@ def resample_img(
     resample.SetOutputOrigin(image.GetOrigin())
     resample.SetTransform(sitk.Transform())
     resample.SetDefaultPixelValue(pad_value)
-    if is_label:
+    if interpolation is not None:
+        resample.SetInterpolator(interpolation)
+    elif is_label:
         resample.SetInterpolator(sitk.sitkNearestNeighbor)
     else:
         resample.SetInterpolator(sitk.sitkBSpline)
@@ -254,13 +261,13 @@ class Sample:
         # set up resampler to resolution, field of view, etc. of first scan
         resampler = sitk.ResampleImageFilter()  # default linear
         resampler.SetReferenceImage(self.scans[0])
-        resampler.SetInterpolator(sitk.sitkBSpline)
+        resampler.SetInterpolator(self.settings.scan_interpolator)
 
         # resample other images
         self.scans[1:] = [resampler.Execute(scan) for scan in self.scans[1:]]
 
         # resample annotation
-        resampler.SetInterpolator(sitk.sitkNearestNeighbor)
+        resampler.SetInterpolator(self.settings.lbl_interpolator)
         if self.lbl is not None:
             self.lbl = resampler.Execute(self.lbl)
 
@@ -272,13 +279,13 @@ class Sample:
 
         # resample scans to target resolution
         self.scans = [
-            resample_img(scan, out_spacing=spacing, is_label=False)
+            resample_img(scan, out_spacing=spacing, interpolation=self.settings.scan_interpolator)
             for scan in self.scans
         ]
 
         # resample annotation to target resolution
         if self.lbl is not None:
-            self.lbl = resample_img(self.lbl, out_spacing=spacing, is_label=True)
+            self.lbl = resample_img(self.lbl, out_spacing=spacing, interpolation=self.settings.lbl_interpolator)
 
     def centre_crop_or_pad(self):
         """Centre crop and/or pad scans and label"""
