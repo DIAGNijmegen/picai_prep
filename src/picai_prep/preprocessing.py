@@ -44,8 +44,8 @@ class PreprocessingSettings():
     physical_size: Optional[Iterable[float]] = None
     crop_only: bool = False
     align_segmentation: Optional[sitk.Image] = None
-    scan_interpolator = sitk.sitkBSpline
-    lbl_interpolator = sitk.sitkNearestNeighbor
+    scan_interpolator: int = sitk.sitkBSpline
+    lbl_interpolator: int = sitk.sitkNearestNeighbor
 
     def __post_init__(self):
         if self.physical_size is None and self.spacing is not None and self.matrix_size is not None:
