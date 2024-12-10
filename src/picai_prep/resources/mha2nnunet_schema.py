@@ -56,6 +56,14 @@ mha2nnunet_schema = {
                     "description": "Only crop to specified size (i.e., do not pad)",
                     "type": "boolean"
                 },
+                "scan_interpolator": {
+                    "description": "Interpolator for scans",
+                    "type": "integer",
+                },
+                "lbl_interpolator": {
+                    "description": "Interpolator for labels",
+                    "type": "integer",
+                },
             },
             "additionalProperties": False
         },
