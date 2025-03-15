@@ -38,6 +38,7 @@ class PreprocessingSettings():
     - align_segmentation: whether to align the scans using the centroid of the provided segmentation
     - scan_interpolator: interpolation method for scans
     - lbl_interpolator: interpolation method for labels
+    - seg_interpolator: interpolation method for segmentations
     """
     matrix_size: Optional[Iterable[int]] = None
     spacing: Optional[Iterable[float]] = None
@@ -46,6 +47,7 @@ class PreprocessingSettings():
     align_segmentation: Optional[sitk.Image] = None
     scan_interpolator: int = sitk.sitkBSpline
     lbl_interpolator: int = sitk.sitkNearestNeighbor
+    seg_interpolator: int = sitk.sitkNearestNeighbor
 
     def __post_init__(self):
         if self.physical_size is None and self.spacing is not None and self.matrix_size is not None:
@@ -238,10 +240,13 @@ def crop_or_pad(
 class Sample:
     scans: List[sitk.Image]
     lbl: Optional[sitk.Image] = None
+    seg: Optional[sitk.Image] = None
     name: Optional[str] = None
     settings: PreprocessingSettings = None
     lbl_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
     lbl_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
+    seg_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
+    seg_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
     scan_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
     scan_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
     case_preprocess_func: Optional[Callable[["Sample"], "Sample"]] = None
@@ -268,10 +273,12 @@ class Sample:
         # resample other images
         self.scans[1:] = [resampler.Execute(scan) for scan in self.scans[1:]]
 
-        # resample annotation
+        # resample annotation and segmentation
         resampler.SetInterpolator(self.settings.lbl_interpolator)
         if self.lbl is not None:
             self.lbl = resampler.Execute(self.lbl)
+        if self.seg is not None:
+            self.seg = resampler.Execute(self.seg)
 
     def resample_spacing(self, spacing: Optional[Iterable[float]] = None):
         """Resample scans and label to the target spacing"""
@@ -288,6 +295,8 @@ class Sample:
         # resample annotation to target resolution
         if self.lbl is not None:
             self.lbl = resample_img(self.lbl, out_spacing=spacing, interpolation=self.settings.lbl_interpolator)
+        if self.seg is not None:
+            self.seg = resample_img(self.seg, out_spacing=spacing, interpolation=self.settings.seg_interpolator)
 
     def centre_crop_or_pad(self):
         """Centre crop and/or pad scans and label"""
@@ -303,6 +312,8 @@ class Sample:
 
         if self.lbl is not None:
             self.lbl = crop_or_pad(self.lbl, **kwargs)
+        if self.seg is not None:
+            self.seg = crop_or_pad(self.seg, **kwargs)
 
     def align_physical_metadata(self, check_almost_equal=True):
         """Align the origin and direction of each scan, and label"""
@@ -330,6 +341,11 @@ class Sample:
             self.lbl.SetOrigin(case_origin)
             self.lbl.SetDirection(case_direction)
             self.lbl.SetSpacing(case_spacing)
+        if self.seg is not None:
+            assert case_origin is not None and case_direction is not None and case_spacing is not None
+            self.seg.SetOrigin(case_origin)
+            self.seg.SetDirection(case_direction)
+            self.seg.SetSpacing(case_spacing)
 
     def preprocess(self):
         """Perform all preprocessing steps"""
@@ -340,6 +356,9 @@ class Sample:
         if self.lbl is not None and self.lbl_preprocess_func:
             # apply label transformation
             self.lbl = self.lbl_preprocess_func(self.lbl)
+        if self.seg is not None and self.seg_preprocess_func:
+            # apply segmentation transformation
+            self.seg = self.seg_preprocess_func(self.seg)
         if self.scan_preprocess_func:
             # apply scan transformation
             self.scans = [self.scan_preprocess_func(scan) for scan in self.scans]
@@ -370,6 +389,9 @@ class Sample:
         if self.lbl is not None and self.lbl_postprocess_func:
             # apply label transformation
             self.lbl = self.lbl_postprocess_func(self.lbl)
+        if self.seg is not None and self.seg_postprocess_func:
+            # apply segmentation transformation
+            self.seg = self.seg_postprocess_func(self.seg)
         if self.scan_postprocess_func:
             # apply scan transformation
             self.scans = [self.scan_postprocess_func(scan) for scan in self.scans]

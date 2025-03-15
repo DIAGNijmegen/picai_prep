@@ -36,6 +36,8 @@ class MHA2nnUNetSettings:
     annotation_dirname: PathLike = "labelsTr"
     annotation_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
     annotation_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
+    segmentation_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
+    segmentation_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
     scan_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
     scan_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
     case_preprocess_func: Optional[Callable[["Sample"], "Sample"]] = None
@@ -52,6 +54,7 @@ class MHA2nnUNetSettings:
 class _MHA2nnUNetCaseBase:
     scans_dir: Path
     annotations_dir: Path
+    segmentations_dir: Path
     scan_paths: List[Path]
     settings: MHA2nnUNetSettings
 
@@ -59,11 +62,15 @@ class _MHA2nnUNetCaseBase:
 @dataclass
 class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
     annotation_path: Optional[Path] = None
+    segmentation_path: Optional[Path] = None
+    skip_conversion: bool = False
     verified_scan_paths: List[Path] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if self.annotations_dir and self.annotation_path:
             self.annotation_path = self.annotations_dir / self.annotation_path
+        if self.segmentations_dir and self.segmentation_path:
+            self.segmentation_path = self.segmentations_dir / self.segmentation_path
 
     def convert_item(self, scans_out_dir: Path, annotations_out_dir: Path) -> None:
         self.initialize(scans_out_dir, annotations_out_dir)
@@ -99,6 +106,12 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
                 raise FileNotFoundError(self.annotation_path)
 
             self.write_log(f'\t+ {self.annotation_path}')
+        if self.segmentation_path:
+            self.write_log('Importing segmentation')
+            if not self.segmentation_path.exists():
+                raise FileNotFoundError(self.segmentation_path)
+
+            self.write_log(f'\t+ {self.segmentation_path}')
 
     def output_files_exist(self, scans_out_dir: Path, annotations_out_dir: Path) -> bool:
         """
@@ -124,14 +137,18 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
 
         scans = [sitk.ReadImage(path.as_posix()) for path in self.verified_scan_paths]
         lbl = sitk.ReadImage(self.annotation_path.as_posix()) if self.annotation_path else None
+        seg = sitk.ReadImage(self.segmentation_path.as_posix()) if self.segmentation_path else None
 
         # set up Sample
         sample = Sample(
             scans=scans,
             lbl=lbl,
+            seg=seg,
             settings=self.settings.preprocessing,
             lbl_preprocess_func=self.settings.annotation_preprocess_func,
             lbl_postprocess_func=self.settings.annotation_postprocess_func,
+            seg_preprocess_func=self.settings.segmentation_preprocess_func,
+            seg_postprocess_func=self.settings.segmentation_postprocess_func,
             scan_preprocess_func=self.settings.scan_preprocess_func,
             scan_postprocess_func=self.settings.scan_postprocess_func,
             case_preprocess_func=self.settings.case_preprocess_func,
@@ -191,6 +208,7 @@ class MHA2nnUNetConverter(Converter):
         mha2nnunet_settings: Union[PathLike, Dict],
         scans_out_dirname: str = 'imagesTr',
         annotations_dir: Optional[PathLike] = None,
+        segmentations_dir: Optional[PathLike] = None,
         annotations_out_dirname: Optional[str] = 'labelsTr',
     ):
         """
@@ -240,6 +258,7 @@ class MHA2nnUNetConverter(Converter):
         # set up paths and create output directory
         self.scans_dir = Path(scans_dir)
         self.annotations_dir = Path(annotations_dir) if annotations_dir else None
+        self.segmentations_dir = Path(segmentations_dir) if segmentations_dir else None
 
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -255,7 +274,13 @@ class MHA2nnUNetConverter(Converter):
 
     def _init_cases(self, archive: List[Dict[str, Any]]) -> List[MHA2nnUNetCase]:
         return [
-            MHA2nnUNetCase(scans_dir=self.scans_dir, annotations_dir=self.annotations_dir, settings=self.settings, **kwargs)
+            MHA2nnUNetCase(
+                scans_dir=self.scans_dir,
+                annotations_dir=self.annotations_dir,
+                segmentations_dir=self.segmentations_dir,
+                settings=self.settings,
+                **kwargs,
+            )
             for kwargs in archive
         ]
 

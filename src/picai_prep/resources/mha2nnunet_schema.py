@@ -26,6 +26,10 @@ mha2nnunet_schema = {
                     "annotation_path": {
                         "description": "Path to annotation. Can be relative from --input or absolute",
                         "type": "string"
+                    },
+                    "segmentation_path": {
+                        "description": "Path to segmentation. Can be relative from --input or absolute",
+                        "type": "string"
                     }
                 },
                 "required": [
