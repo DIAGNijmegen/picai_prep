@@ -38,6 +38,8 @@ class MHA2nnUNetSettings:
     annotation_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
     scan_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
     scan_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
+    case_preprocess_func: Optional[Callable[["Sample"], "Sample"]] = None
+    case_postprocess_func: Optional[Callable[["Sample"], "Sample"]] = None
     num_threads: int = 4
     verbose: int = 1
 
@@ -132,6 +134,8 @@ class MHA2nnUNetCase(Case, _MHA2nnUNetCaseBase):
             lbl_postprocess_func=self.settings.annotation_postprocess_func,
             scan_preprocess_func=self.settings.scan_preprocess_func,
             scan_postprocess_func=self.settings.scan_postprocess_func,
+            case_preprocess_func=self.settings.case_preprocess_func,
+            case_postprocess_func=self.settings.case_postprocess_func,
             name=self.subject_id
         )
 

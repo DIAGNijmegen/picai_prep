@@ -244,6 +244,8 @@ class Sample:
     lbl_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
     scan_preprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
     scan_postprocess_func: Optional[Callable[[sitk.Image], sitk.Image]] = None
+    case_preprocess_func: Optional[Callable[["Sample"], "Sample"]] = None
+    case_postprocess_func: Optional[Callable[["Sample"], "Sample"]] = None
     num_gt_lesions: Optional[int] = None
 
     def __post_init__(self):
@@ -332,6 +334,9 @@ class Sample:
     def preprocess(self):
         """Perform all preprocessing steps"""
         # user-defined preprocessing steps
+        if self.case_preprocess_func:
+            # apply case transformation
+            self = self.case_preprocess_func(self)
         if self.lbl is not None and self.lbl_preprocess_func:
             # apply label transformation
             self.lbl = self.lbl_preprocess_func(self.lbl)
@@ -368,6 +373,9 @@ class Sample:
         if self.scan_postprocess_func:
             # apply scan transformation
             self.scans = [self.scan_postprocess_func(scan) for scan in self.scans]
+        if self.case_postprocess_func:
+            # apply case transformation
+            self = self.case_postprocess_func(self)
 
 
 def resample_to_reference_scan(
