@@ -186,6 +186,7 @@ def crop_or_pad(
     physical_size: Optional[Iterable[float]] = None,
     crop_only: bool = False,
     pad_only: bool = False,
+    pad_value: Union[float, int] = 0,
 ) -> "Union[sitk.Image, npt.NDArray[Any]]":
     """
     Resize image by cropping and/or padding
@@ -231,9 +232,10 @@ def crop_or_pad(
         pad_filter = sitk.ConstantPadImageFilter()
         pad_filter.SetPadLowerBound([pad[0] for pad in padding])
         pad_filter.SetPadUpperBound([pad[1] for pad in padding])
+        pad_filter.SetConstant(pad_value)
         return pad_filter.Execute(image[tuple(slicer)])
     else:
-        return np.pad(image[tuple(slicer)], padding)
+        return np.pad(image[tuple(slicer)], padding, constant_values=pad_value)
 
 
 @dataclass
